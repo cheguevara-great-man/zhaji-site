@@ -35,10 +35,14 @@ server.listen(port, () => {
 
 async function handle(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  await store.load();
   const user = getCurrentUser(req);
 
   if (url.pathname.startsWith("/public/")) {
     return serveStatic(req, res, url.pathname.replace("/public/", ""));
+  }
+  if (url.pathname.startsWith("/uploads/")) {
+    return serveStatic(req, res, url.pathname.replace("/", ""));
   }
 
   if (req.method === "GET" && url.pathname === "/") return home(res, user);
@@ -390,7 +394,7 @@ function requireAdmin(res, user, next) {
 async function serveStatic(req, res, path) {
   const safePath = path.replaceAll("\\", "/").replace(/\.\.+/g, "");
   const filePath = join(publicDir, safePath);
-  const type = extname(filePath) === ".css" ? "text/css" : "application/javascript";
+  const type = mimeType(filePath);
   const body = await readFile(filePath);
   res.writeHead(200, { "Content-Type": `${type}; charset=utf-8`, "Cache-Control": "no-store" });
   res.end(body);
@@ -434,4 +438,16 @@ function fromDateInput(value) {
 
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]*>/g, "");
+}
+
+function mimeType(filePath) {
+  const ext = extname(filePath).toLowerCase();
+  if (ext === ".css") return "text/css";
+  if (ext === ".js") return "application/javascript";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".avif") return "image/avif";
+  return "application/octet-stream";
 }

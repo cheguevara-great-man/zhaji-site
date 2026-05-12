@@ -56,6 +56,50 @@ You can also import a folder of `.md` files:
 npm.cmd run import:zhihu -- .\path\to\markdown-folder
 ```
 
+## Collect From Zhihu
+
+The collector opens a real browser, keeps its login session under `data\playwright-profile\zhihu`, downloads images to `public\uploads\zhihu`, and writes an export to `data\zhihu-export\articles.json`.
+
+On Windows it uses Microsoft Edge by default, so it does not need to download Playwright's bundled Chromium. Use `--channel chrome` if you prefer Chrome.
+
+Small test run:
+
+```powershell
+npm.cmd run collect:zhihu -- --profile "https://www.zhihu.com/people/cai-ba-74-36" --types posts --maxPosts 1
+```
+
+For a public-only probe without waiting for login:
+
+```powershell
+npm.cmd run collect:zhihu -- --profile "https://www.zhihu.com/people/cai-ba-74-36" --types posts --maxPosts 1 --noLoginWait
+```
+
+Full collection and import:
+
+```powershell
+npm.cmd run collect:zhihu -- --profile "https://www.zhihu.com/people/cai-ba-74-36" --import
+```
+
+If Zhihu is unstable, reduce the page size:
+
+```powershell
+npm.cmd run collect:zhihu -- --profile "https://www.zhihu.com/people/cai-ba-74-36" --import --pageSize 3
+```
+
+To rebuild imported Zhihu content while preserving local users:
+
+```powershell
+npm.cmd run collect:zhihu -- --profile "https://www.zhihu.com/people/cai-ba-74-36" --import --replace
+```
+
+If an interrupted run leaves duplicate imported records, repair the local database:
+
+```powershell
+npm.cmd run repair:zhihu
+```
+
+If Zhihu asks for login, complete login in the opened browser. Do not paste your password into chat.
+
 ## Email
 
 By default, email is written to:

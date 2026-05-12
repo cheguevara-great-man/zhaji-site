@@ -257,6 +257,21 @@ time,
   text-decoration: underline;
 }
 
+.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 22px auto;
+  border-radius: 8px;
+}
+
+.prose blockquote {
+  margin: 24px 0;
+  border-left: 3px solid var(--accent);
+  padding-left: 16px;
+  color: var(--muted);
+}
+
 .comments {
   width: min(780px, 100%);
   margin: 54px auto 0;
