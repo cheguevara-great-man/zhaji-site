@@ -1,0 +1,437 @@
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { clearSessionCookie, hashPassword, parseCookies, sessionCookie, verifyPassword } from "./auth.js";
+import { Emailer } from "./email.js";
+import { escapeHtml, layout, markdownToHtml, textToHtml } from "./render.js";
+import { Store } from "./store.js";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const root = resolve(__dirname, "..");
+const publicDir = join(root, "public");
+const store = new Store(process.env.DB_PATH || join(root, "data", "db.json"));
+const emailer = new Emailer(process.env.OUTBOX_DIR || join(root, "data", "outbox"));
+const port = Number(process.env.PORT || 4173);
+
+await store.load();
+
+const server = createServer(async (req, res) => {
+  try {
+    await handle(req, res);
+  } catch (error) {
+    console.error(error);
+    sendHtml(res, 500, layout({
+      title: "Server error",
+      user: getCurrentUser(req),
+      body: `<section class="narrow"><h1>出了点问题</h1><p>${escapeHtml(error.message)}</p></section>`
+    }));
+  }
+});
+
+server.listen(port, () => {
+  console.log(`Zhihu Article Site running at http://localhost:${port}`);
+});
+
+async function handle(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const user = getCurrentUser(req);
+
+  if (url.pathname.startsWith("/public/")) {
+    return serveStatic(req, res, url.pathname.replace("/public/", ""));
+  }
+
+  if (req.method === "GET" && url.pathname === "/") return home(res, user);
+  if (req.method === "GET" && url.pathname === "/archive") return archive(res, user);
+  if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()));
+
+  if (req.method === "GET" && url.pathname === "/login") return authPage(res, user, "login");
+  if (req.method === "GET" && url.pathname === "/register") return authPage(res, user, "register");
+  if (req.method === "GET" && url.pathname === "/forgot-password") return forgotPage(res, user);
+  if (req.method === "GET" && url.pathname === "/reset-password") return resetPage(res, user, url.searchParams.get("token"));
+
+  if (req.method === "POST" && url.pathname === "/register") return register(req, res);
+  if (req.method === "POST" && url.pathname === "/login") return login(req, res);
+  if (req.method === "POST" && url.pathname === "/logout") return logout(req, res);
+  if (req.method === "POST" && url.pathname === "/forgot-password") return forgot(req, res);
+  if (req.method === "POST" && url.pathname === "/reset-password") return resetPassword(req, res);
+  if (req.method === "POST" && url.pathname.startsWith("/comments/")) return createComment(req, res, user, decodeURIComponent(url.pathname.split("/").pop()));
+  if (req.method === "POST" && url.pathname.startsWith("/delete-comment/")) return deleteComment(req, res, user, url.pathname.split("/").pop());
+
+  if (req.method === "GET" && url.pathname === "/admin") return requireAdmin(res, user, () => adminDashboard(res, user));
+  if (req.method === "GET" && url.pathname === "/admin/new") return requireAdmin(res, user, () => articleForm(res, user));
+  if (req.method === "GET" && url.pathname.startsWith("/admin/edit/")) return requireAdmin(res, user, () => articleForm(res, user, store.getArticleById(url.pathname.split("/").pop())));
+  if (req.method === "GET" && url.pathname === "/admin/import") return requireAdmin(res, user, () => importPage(res, user));
+  if (req.method === "POST" && url.pathname === "/admin/articles") return requireAdmin(res, user, () => saveArticle(req, res, user));
+  if (req.method === "POST" && url.pathname.startsWith("/admin/articles/")) return requireAdmin(res, user, () => saveArticle(req, res, user, url.pathname.split("/").pop()));
+  if (req.method === "POST" && url.pathname.startsWith("/admin/delete/")) return requireAdmin(res, user, () => removeArticle(res, url.pathname.split("/").pop()));
+  if (req.method === "POST" && url.pathname === "/admin/import") return requireAdmin(res, user, () => importArticles(req, res, user));
+
+  sendHtml(res, 404, layout({
+    title: "Not found",
+    user,
+    body: `<section class="narrow"><h1>页面不存在</h1><p>这个地址没有对应内容。</p></section>`
+  }));
+}
+
+function getCurrentUser(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  return store.getUserBySession(cookies.get("sid"));
+}
+
+function home(res, user) {
+  const articles = store.listArticles().slice(0, 6);
+  sendHtml(res, 200, layout({
+    title: "知文集",
+    user,
+    active: "/",
+    body: `<section class="hero">
+      <div>
+        <p class="eyebrow">Personal Archive</p>
+        <h1>把长文留下来，按自己的方式阅读和讨论。</h1>
+        <p>这里会收纳你的知乎文章，保留来源、发布时间、评论和后续编辑空间。</p>
+      </div>
+      <a class="primary-action" href="/archive">浏览文章</a>
+    </section>
+    <section class="article-grid">
+      ${articles.length ? articles.map(articleCard).join("") : `<div class="empty">还没有文章。注册第一个账号后进入 Admin 发布或导入。</div>`}
+    </section>`
+  }));
+}
+
+function archive(res, user) {
+  const articles = store.listArticles();
+  sendHtml(res, 200, layout({
+    title: "文章归档",
+    user,
+    active: "/archive",
+    body: `<section class="page-heading"><h1>文章归档</h1><p>${articles.length} 篇文章</p></section>
+    <section class="archive-list">
+      ${articles.map((article) => `<a class="archive-row" href="/articles/${encodeURIComponent(article.slug)}">
+        <span>${escapeHtml(article.title)}</span>
+        <time>${formatDate(article.publishedAt)}</time>
+      </a>`).join("") || `<div class="empty">暂无文章。</div>`}
+    </section>`
+  }));
+}
+
+function articlePage(res, user, slug) {
+  const article = store.getArticleBySlug(slug, { includeDrafts: user?.isAdmin });
+  if (!article) return sendHtml(res, 404, layout({ title: "Article not found", user, body: `<section class="narrow"><h1>文章不存在</h1></section>` }));
+
+  const comments = store.listComments(article.id);
+  sendHtml(res, 200, layout({
+    title: article.title,
+    user,
+    body: `<article class="article">
+      <header>
+        <time>${formatDate(article.publishedAt)}</time>
+        <h1>${escapeHtml(article.title)}</h1>
+        ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ""}
+        ${article.sourceUrl ? `<a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a>` : ""}
+      </header>
+      <div class="prose">${article.contentHtml}</div>
+    </article>
+    <section class="comments">
+      <h2>评论</h2>
+      ${comments.map((comment) => commentView(comment, user)).join("") || `<p class="muted">还没有评论。</p>`}
+      ${user ? `<form class="comment-form" method="post" action="/comments/${encodeURIComponent(article.slug)}">
+        <label>添加评论<textarea name="body" required minlength="2" rows="4"></textarea></label>
+        <button>发布评论</button>
+      </form>` : `<p class="muted"><a href="/login">登录</a> 后可以评论。</p>`}
+    </section>`
+  }));
+}
+
+function authPage(res, user, mode) {
+  if (user) return redirect(res, "/");
+  const isLogin = mode === "login";
+  sendHtml(res, 200, layout({
+    title: isLogin ? "登录" : "注册",
+    user,
+    body: `<section class="auth-panel">
+      <h1>${isLogin ? "登录" : "注册"}</h1>
+      <form method="post" action="/${isLogin ? "login" : "register"}">
+        ${isLogin ? "" : `<label>用户名<input name="name" required minlength="2"></label>`}
+        <label>邮箱<input type="email" name="email" required></label>
+        <label>密码<input type="password" name="password" required minlength="8"></label>
+        <button>${isLogin ? "登录" : "创建账号"}</button>
+      </form>
+      <p>${isLogin ? `还没有账号？<a href="/register">注册</a> · <a href="/forgot-password">忘记密码</a>` : `已有账号？<a href="/login">登录</a>`}</p>
+    </section>`
+  }));
+}
+
+function forgotPage(res, user) {
+  sendHtml(res, 200, layout({
+    title: "找回密码",
+    user,
+    body: `<section class="auth-panel"><h1>找回密码</h1>
+      <form method="post" action="/forgot-password">
+        <label>注册邮箱<input type="email" name="email" required></label>
+        <button>发送重置链接</button>
+      </form>
+    </section>`
+  }));
+}
+
+function resetPage(res, user, token) {
+  sendHtml(res, 200, layout({
+    title: "重置密码",
+    user,
+    body: `<section class="auth-panel"><h1>重置密码</h1>
+      <form method="post" action="/reset-password">
+        <input type="hidden" name="token" value="${escapeHtml(token || "")}">
+        <label>新密码<input type="password" name="password" required minlength="8"></label>
+        <button>更新密码</button>
+      </form>
+    </section>`
+  }));
+}
+
+async function register(req, res) {
+  const form = await readForm(req);
+  const password = form.get("password");
+  if (String(password).length < 8) throw new Error("Password must be at least 8 characters.");
+
+  const user = await store.createUser({
+    name: form.get("name"),
+    email: form.get("email"),
+    passwordHash: await hashPassword(password)
+  });
+  const token = await store.createSession(user.id);
+  res.setHeader("Set-Cookie", sessionCookie(token));
+  redirect(res, user.isAdmin ? "/admin" : "/");
+}
+
+async function login(req, res) {
+  const form = await readForm(req);
+  const user = store.getUserByEmail(form.get("email"));
+  if (!user || !(await verifyPassword(form.get("password"), user.passwordHash))) {
+    return sendHtml(res, 401, layout({ title: "登录失败", user: null, body: `<section class="narrow"><h1>登录失败</h1><p>邮箱或密码不正确。</p><p><a href="/login">返回登录</a></p></section>` }));
+  }
+
+  const token = await store.createSession(user.id);
+  res.setHeader("Set-Cookie", sessionCookie(token));
+  redirect(res, "/");
+}
+
+async function logout(req, res) {
+  const cookies = parseCookies(req.headers.cookie);
+  await store.deleteSession(cookies.get("sid"));
+  res.setHeader("Set-Cookie", clearSessionCookie());
+  redirect(res, "/");
+}
+
+async function forgot(req, res) {
+  const form = await readForm(req);
+  const user = store.getUserByEmail(form.get("email"));
+  if (user) {
+    const token = await store.createPasswordReset(user.id);
+    const link = `http://${req.headers.host}/reset-password?token=${encodeURIComponent(token)}`;
+    await emailer.send({
+      to: user.email,
+      subject: "知文集密码重置",
+      text: `请打开下面的链接重置密码，45 分钟内有效：\n\n${link}`
+    });
+  }
+
+  sendHtml(res, 200, layout({
+    title: "邮件已处理",
+    user: getCurrentUser(req),
+    body: `<section class="narrow"><h1>请检查邮箱</h1><p>如果邮箱存在，重置链接已经发送。本地开发模式下请查看 <code>data\\outbox</code>。</p></section>`
+  }));
+}
+
+async function resetPassword(req, res) {
+  const form = await readForm(req);
+  const user = await store.consumePasswordReset(form.get("token"));
+  if (!user) throw new Error("Reset link is invalid or expired.");
+
+  await store.updatePassword(user.id, await hashPassword(form.get("password")));
+  redirect(res, "/login");
+}
+
+async function createComment(req, res, user, slug) {
+  if (!user) return redirect(res, "/login");
+  const article = store.getArticleBySlug(slug);
+  if (!article) throw new Error("Article not found.");
+  const form = await readForm(req);
+  if (String(form.get("body")).trim().length < 2) throw new Error("Comment is too short.");
+  await store.createComment({ articleId: article.id, userId: user.id, body: form.get("body") });
+  redirect(res, `/articles/${encodeURIComponent(slug)}`);
+}
+
+async function deleteComment(req, res, user, id) {
+  if (!user) return redirect(res, "/login");
+  await store.deleteComment(id, user);
+  redirect(res, req.headers.referer || "/");
+}
+
+function adminDashboard(res, user) {
+  const articles = store.listArticles({ includeDrafts: true });
+  sendHtml(res, 200, layout({
+    title: "Admin",
+    user,
+    active: "/admin",
+    body: `<section class="admin-head"><div><h1>内容管理</h1><p>发布、编辑和导入你的文章。</p></div><div><a class="button-link" href="/admin/import">导入</a><a class="primary-action" href="/admin/new">新文章</a></div></section>
+    <section class="admin-list">
+      ${articles.map((article) => `<div class="admin-row">
+        <div><strong>${escapeHtml(article.title)}</strong><span>${article.status} · ${formatDate(article.publishedAt)}</span></div>
+        <div class="row-actions"><a href="/articles/${encodeURIComponent(article.slug)}">查看</a><a href="/admin/edit/${article.id}">编辑</a><form method="post" action="/admin/delete/${article.id}" data-confirm="确定删除这篇文章？"><button>删除</button></form></div>
+      </div>`).join("") || `<div class="empty">暂无文章。</div>`}
+    </section>`
+  }));
+}
+
+function articleForm(res, user, article = null) {
+  sendHtml(res, 200, layout({
+    title: article ? "编辑文章" : "新文章",
+    user,
+    body: `<section class="editor">
+      <h1>${article ? "编辑文章" : "新文章"}</h1>
+      <form method="post" action="${article ? `/admin/articles/${article.id}` : "/admin/articles"}">
+        <label>标题<input name="title" required value="${escapeHtml(article?.title || "")}"></label>
+        <label>摘要<textarea name="excerpt" rows="3">${escapeHtml(article?.excerpt || "")}</textarea></label>
+        <label>原文链接<input name="sourceUrl" value="${escapeHtml(article?.sourceUrl || "")}"></label>
+        <label>发布时间<input type="datetime-local" name="publishedAt" value="${toDateInput(article?.publishedAt)}"></label>
+        <label>状态<select name="status"><option value="published" ${article?.status !== "draft" ? "selected" : ""}>发布</option><option value="draft" ${article?.status === "draft" ? "selected" : ""}>草稿</option></select></label>
+        <label>格式<select name="format"><option value="markdown">Markdown</option><option value="html" ${article ? "selected" : ""}>HTML</option></select></label>
+        <label>正文<textarea class="content-editor" name="content" required rows="18">${escapeHtml(article?.contentHtml || "")}</textarea></label>
+        <button>保存</button>
+      </form>
+    </section>`
+  }));
+}
+
+async function saveArticle(req, res, user, id = null) {
+  const form = await readForm(req);
+  const content = form.get("format") === "html" ? form.get("content") : markdownToHtml(form.get("content"));
+  const input = {
+    title: form.get("title"),
+    excerpt: form.get("excerpt"),
+    sourceUrl: form.get("sourceUrl"),
+    publishedAt: fromDateInput(form.get("publishedAt")),
+    status: form.get("status"),
+    contentHtml: content,
+    authorId: user.id
+  };
+
+  if (id) await store.updateArticle(id, input);
+  else await store.createArticle(input);
+  redirect(res, "/admin");
+}
+
+async function removeArticle(res, id) {
+  await store.deleteArticle(id);
+  redirect(res, "/admin");
+}
+
+function importPage(res, user) {
+  sendHtml(res, 200, layout({
+    title: "导入文章",
+    user,
+    body: `<section class="editor">
+      <h1>导入文章</h1>
+      <p class="muted">粘贴 JSON 数组。每项支持 title、markdown、html、sourceUrl、publishedAt、excerpt。</p>
+      <form method="post" action="/admin/import">
+        <label>文章 JSON<textarea class="content-editor" name="payload" rows="18" required>[{"title":"示例文章","markdown":"# 小标题\\n正文内容","sourceUrl":"https://zhuanlan.zhihu.com/p/example"}]</textarea></label>
+        <button>导入</button>
+      </form>
+    </section>`
+  }));
+}
+
+async function importArticles(req, res, user) {
+  const form = await readForm(req, 5_000_000);
+  const parsed = JSON.parse(form.get("payload"));
+  const items = Array.isArray(parsed) ? parsed : parsed.articles;
+  if (!Array.isArray(items)) throw new Error("Payload must be an array or an object with an articles array.");
+
+  for (const item of items) {
+    if (!item.title) continue;
+    await store.createArticle({
+      title: item.title,
+      excerpt: item.excerpt || item.summary || "",
+      contentHtml: item.html || item.contentHtml || markdownToHtml(item.markdown || item.content || ""),
+      sourceUrl: item.sourceUrl || item.url || "",
+      publishedAt: item.publishedAt || new Date().toISOString(),
+      status: item.status || "published",
+      authorId: user.id
+    });
+  }
+
+  redirect(res, "/admin");
+}
+
+function articleCard(article) {
+  return `<a class="article-card" href="/articles/${encodeURIComponent(article.slug)}">
+    <time>${formatDate(article.publishedAt)}</time>
+    <h2>${escapeHtml(article.title)}</h2>
+    <p>${escapeHtml(article.excerpt || stripHtml(article.contentHtml).slice(0, 120))}</p>
+  </a>`;
+}
+
+function commentView(comment, currentUser) {
+  const author = store.getUserById(comment.userId);
+  const canDelete = currentUser?.isAdmin || currentUser?.id === comment.userId;
+  return `<div class="comment">
+    <div><strong>${escapeHtml(author?.name || "用户")}</strong><time>${formatDate(comment.createdAt)}</time></div>
+    <p>${textToHtml(comment.body)}</p>
+    ${canDelete ? `<form method="post" action="/delete-comment/${comment.id}"><button>删除</button></form>` : ""}
+  </div>`;
+}
+
+function requireAdmin(res, user, next) {
+  if (!user?.isAdmin) return redirect(res, "/login");
+  return next();
+}
+
+async function serveStatic(req, res, path) {
+  const safePath = path.replaceAll("\\", "/").replace(/\.\.+/g, "");
+  const filePath = join(publicDir, safePath);
+  const type = extname(filePath) === ".css" ? "text/css" : "application/javascript";
+  const body = await readFile(filePath);
+  res.writeHead(200, { "Content-Type": `${type}; charset=utf-8`, "Cache-Control": "no-store" });
+  res.end(body);
+}
+
+async function readForm(req, limit = 1_000_000) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new Error("Request body is too large.");
+    chunks.push(chunk);
+  }
+  return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(body);
+}
+
+function redirect(res, location) {
+  res.writeHead(303, { Location: location });
+  res.end();
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+}
+
+function toDateInput(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "" : date.toISOString().slice(0, 16);
+}
+
+function fromDateInput(value) {
+  return value ? new Date(value).toISOString() : new Date().toISOString();
+}
+
+function stripHtml(value) {
+  return String(value || "").replace(/<[^>]*>/g, "");
+}

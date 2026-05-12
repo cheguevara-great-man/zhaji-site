@@ -1,0 +1,7 @@
+data/db.json
+data/outbox
+node_modules
+*.log
+.env
+.DS_Store
+Thumbs.db
