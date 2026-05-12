@@ -33,6 +33,7 @@ async function importJson(path) {
     const html = item.html || item.contentHtml || markdownToHtml(item.markdown || item.content || "");
     articles.push({
       title,
+      kind: item.kind || "article",
       excerpt: item.excerpt || item.summary || "",
       contentHtml: html,
       sourceUrl: item.sourceUrl || item.url || "",
@@ -53,6 +54,7 @@ async function importMarkdownDirectory(path) {
     const body = firstLine.startsWith("# ") ? rest.join("\n") : raw;
     articles.push({
       title,
+      kind: "article",
       excerpt: textToHtml(body).replace(/<[^>]+>/g, "").slice(0, 180),
       contentHtml: markdownToHtml(body),
       sourceUrl: "",

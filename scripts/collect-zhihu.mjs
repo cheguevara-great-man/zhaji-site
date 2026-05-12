@@ -419,6 +419,7 @@ async function importIntoSite(items, { replace = false } = {}) {
     if (existing.has(item.sourceUrl)) continue;
     await store.createArticle({
       title: item.title,
+      kind: item.kind,
       excerpt: item.excerpt,
       contentHtml: item.contentHtml,
       sourceUrl: item.sourceUrl,

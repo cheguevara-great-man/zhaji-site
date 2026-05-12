@@ -10,6 +10,7 @@ db.articles = db.articles.filter((article) => {
 });
 
 for (const article of db.articles) {
+  article.kind = article.title.startsWith("回答：") ? "answer" : article.title.startsWith("想法：") ? "pin" : article.kind || "article";
   if (!article.title.startsWith("想法：")) continue;
   article.contentHtml = article.contentHtml.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   const text = article.contentHtml

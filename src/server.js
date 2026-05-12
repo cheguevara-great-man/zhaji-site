@@ -46,7 +46,7 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/") return home(res, user);
-  if (req.method === "GET" && url.pathname === "/archive") return archive(res, user);
+  if (req.method === "GET" && url.pathname === "/archive") return archive(res, user, url);
   if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()));
 
   if (req.method === "GET" && url.pathname === "/login") return authPage(res, user, "login");
@@ -103,16 +103,28 @@ function home(res, user) {
   }));
 }
 
-function archive(res, user) {
-  const articles = store.listArticles();
+function archive(res, user, url) {
+  const selectedKind = normalizeKindFilter(url.searchParams.get("kind"));
+  const articles = store.listArticles({ kind: selectedKind });
+  const allArticles = store.listArticles();
+  const counts = countKinds(allArticles);
+  const filters = [
+    ["", "全部", allArticles.length],
+    ["article", "文章", counts.article],
+    ["answer", "回答", counts.answer],
+    ["pin", "想法", counts.pin]
+  ];
   sendHtml(res, 200, layout({
     title: "文章归档",
     user,
     active: "/archive",
-    body: `<section class="page-heading"><h1>文章归档</h1><p>${articles.length} 篇文章</p></section>
+    body: `<section class="page-heading"><h1>文章归档</h1><p>${articles.length} 篇内容</p></section>
+    <nav class="filter-tabs">
+      ${filters.map(([kind, label, count]) => `<a class="${selectedKind === kind ? "active" : ""}" href="/archive${kind ? `?kind=${kind}` : ""}">${label}<span>${count}</span></a>`).join("")}
+    </nav>
     <section class="archive-list">
       ${articles.map((article) => `<a class="archive-row" href="/articles/${encodeURIComponent(article.slug)}">
-        <span>${escapeHtml(article.title)}</span>
+        <span><small>${kindLabel(article.kind)}</small>${escapeHtml(article.title)}</span>
         <time>${formatDate(article.publishedAt)}</time>
       </a>`).join("") || `<div class="empty">暂无文章。</div>`}
     </section>`
@@ -299,6 +311,7 @@ function articleForm(res, user, article = null) {
         <label>摘要<textarea name="excerpt" rows="3">${escapeHtml(article?.excerpt || "")}</textarea></label>
         <label>原文链接<input name="sourceUrl" value="${escapeHtml(article?.sourceUrl || "")}"></label>
         <label>发布时间<input type="datetime-local" name="publishedAt" value="${toDateInput(article?.publishedAt)}"></label>
+        <label>类型<select name="kind"><option value="article" ${article?.kind !== "answer" && article?.kind !== "pin" ? "selected" : ""}>文章</option><option value="answer" ${article?.kind === "answer" ? "selected" : ""}>回答</option><option value="pin" ${article?.kind === "pin" ? "selected" : ""}>想法</option></select></label>
         <label>状态<select name="status"><option value="published" ${article?.status !== "draft" ? "selected" : ""}>发布</option><option value="draft" ${article?.status === "draft" ? "selected" : ""}>草稿</option></select></label>
         <label>格式<select name="format"><option value="markdown">Markdown</option><option value="html" ${article ? "selected" : ""}>HTML</option></select></label>
         <label>正文<textarea class="content-editor" name="content" required rows="18">${escapeHtml(article?.contentHtml || "")}</textarea></label>
@@ -313,6 +326,7 @@ async function saveArticle(req, res, user, id = null) {
   const content = form.get("format") === "html" ? form.get("content") : markdownToHtml(form.get("content"));
   const input = {
     title: form.get("title"),
+    kind: form.get("kind"),
     excerpt: form.get("excerpt"),
     sourceUrl: form.get("sourceUrl"),
     publishedAt: fromDateInput(form.get("publishedAt")),
@@ -356,6 +370,7 @@ async function importArticles(req, res, user) {
     if (!item.title) continue;
     await store.createArticle({
       title: item.title,
+      kind: item.kind || inferKindFromTitle(item.title),
       excerpt: item.excerpt || item.summary || "",
       contentHtml: item.html || item.contentHtml || markdownToHtml(item.markdown || item.content || ""),
       sourceUrl: item.sourceUrl || item.url || "",
@@ -438,6 +453,31 @@ function fromDateInput(value) {
 
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]*>/g, "");
+}
+
+function normalizeKindFilter(kind) {
+  return ["article", "answer", "pin"].includes(kind) ? kind : "";
+}
+
+function inferKindFromTitle(title) {
+  if (String(title).startsWith("回答：")) return "answer";
+  if (String(title).startsWith("想法：")) return "pin";
+  return "article";
+}
+
+function kindLabel(kind) {
+  if (kind === "answer") return "回答";
+  if (kind === "pin") return "想法";
+  return "文章";
+}
+
+function countKinds(articles) {
+  const counts = { article: 0, answer: 0, pin: 0 };
+  for (const article of articles) {
+    const kind = normalizeKindFilter(article.kind) || inferKindFromTitle(article.title);
+    counts[kind] += 1;
+  }
+  return counts;
 }
 
 function mimeType(filePath) {

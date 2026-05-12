@@ -99,9 +99,10 @@ export class Store {
     return session ? this.getUserById(session.userId) : null;
   }
 
-  listArticles({ includeDrafts = false } = {}) {
+  listArticles({ includeDrafts = false, kind = "" } = {}) {
     return [...this.db.articles]
       .filter((article) => includeDrafts || article.status === "published")
+      .filter((article) => !kind || article.kind === kind)
       .sort((a, b) => Date.parse(b.publishedAt || b.createdAt) - Date.parse(a.publishedAt || a.createdAt));
   }
 
@@ -122,6 +123,7 @@ export class Store {
     const article = {
       id: randomToken(12),
       title: String(input.title).trim(),
+      kind: normalizeKind(input.kind),
       slug: this.uniqueSlug(baseSlug),
       excerpt: String(input.excerpt || "").trim(),
       contentHtml: String(input.contentHtml || ""),
@@ -143,6 +145,7 @@ export class Store {
     if (!article) throw new Error("Article not found.");
 
     article.title = String(input.title).trim();
+    article.kind = normalizeKind(input.kind || article.kind);
     article.excerpt = String(input.excerpt || "").trim();
     article.contentHtml = String(input.contentHtml || "");
     article.sourceUrl = String(input.sourceUrl || "").trim();
@@ -220,6 +223,10 @@ export class Store {
     }
     return slug;
   }
+}
+
+function normalizeKind(kind) {
+  return ["article", "answer", "pin"].includes(kind) ? kind : "article";
 }
 
 function normalizeEmail(email) {

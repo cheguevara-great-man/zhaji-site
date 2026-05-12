@@ -209,6 +209,36 @@ time,
   gap: 10px;
 }
 
+.filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -8px 0 22px;
+}
+
+.filter-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 7px 12px;
+  color: var(--muted);
+}
+
+.filter-tabs a.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.filter-tabs span {
+  font-size: 13px;
+  opacity: 0.78;
+}
+
 .archive-row,
 .admin-row {
   display: grid;
@@ -216,6 +246,15 @@ time,
   gap: 16px;
   align-items: center;
   padding: 16px 18px;
+}
+
+.archive-row small {
+  display: inline-flex;
+  min-width: 38px;
+  margin-right: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .article {
