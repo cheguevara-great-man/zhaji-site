@@ -4,6 +4,7 @@ data/playwright-profile
 data/zhihu-export
 public/uploads/zhihu
 .playwright-cli
+.deploy
 node_modules
 *.log
 .env
