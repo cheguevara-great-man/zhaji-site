@@ -302,6 +302,12 @@ time,
   font-weight: 700;
 }
 
+.article-footer {
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .prose {
   font-size: 18px;
 }

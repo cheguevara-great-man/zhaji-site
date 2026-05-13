@@ -164,11 +164,9 @@ function articlePage(res, user, slug) {
       <header>
         <time>${formatDate(articleSourceCreatedAt(article))}</time>
         <h1>${escapeHtml(article.title)}</h1>
-        ${article.sourceUpdatedAt && article.sourceUpdatedAt !== articleSourceCreatedAt(article) ? `<p class="muted">知乎修改：${formatDate(article.sourceUpdatedAt)}</p>` : ""}
-        ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ""}
-        ${article.sourceUrl ? `<a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a>` : ""}
       </header>
       <div class="prose">${article.contentHtml}</div>
+      ${article.sourceUrl ? `<footer class="article-footer"><a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a></footer>` : ""}
     </article>
     <section class="comments">
       <h2>评论</h2>
