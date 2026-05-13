@@ -86,14 +86,14 @@ function getCurrentUser(req) {
 function home(res, user) {
   const articles = store.listArticles().slice(0, 6);
   sendHtml(res, 200, layout({
-    title: "不可牧",
+    title: "蔡吧札记",
     user,
     active: "/",
     body: `<section class="hero">
       <div>
-        <p class="eyebrow">不可牧</p>
-        <h1>在权力、情感与命运之间，保存自己的判断。</h1>
-        <p>这里收录我的文章、回答和想法：关于制度如何塑造人，也关于人在风险、爱与虚无面前怎样不被带走。</p>
+        <p class="eyebrow">蔡吧札记</p>
+        <h1>把当时真正想过的事，按原样留下。</h1>
+        <p>文章、回答、想法、小说和随笔都放在这里；不把它们总结成一种立场，只保留写下它们时的判断、困惑和语气。</p>
       </div>
     </section>
     <section class="section-head"><h2>最近更新</h2><a href="/archive">全部目录</a></section>
@@ -247,7 +247,7 @@ async function forgot(req, res) {
     const link = `http://${req.headers.host}/reset-password?token=${encodeURIComponent(token)}`;
     await emailer.send({
       to: user.email,
-      subject: "不可牧密码重置",
+      subject: "蔡吧札记密码重置",
       text: `请打开下面的链接重置密码，45 分钟内有效：\n\n${link}`
     });
   }
