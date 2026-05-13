@@ -100,6 +100,16 @@ npm.cmd run repair:zhihu
 
 If Zhihu asks for login, complete login in the opened browser. Do not paste your password into chat.
 
+## Sync From Zhihu
+
+Run a non-destructive sync:
+
+```powershell
+npm.cmd run sync:zhihu
+```
+
+The sync imports new Zhihu items and updates existing items matched by `sourceUrl`. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
+
 ## Email
 
 By default, email is written to:

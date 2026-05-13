@@ -21,6 +21,8 @@ const maxPins = Number(args.maxPins || args.max || 0);
 const types = new Set(String(args.types || "posts,answers,pins").split(",").map((item) => item.trim()).filter(Boolean));
 const shouldImport = Boolean(args.import);
 const shouldReplace = Boolean(args.replace);
+const shouldSync = Boolean(args.sync);
+const shouldFresh = Boolean(args.fresh || shouldSync);
 const headless = Boolean(args.headless);
 const waitForLogin = !args.noLoginWait;
 const browserChannel = args.channel || (process.platform === "win32" ? "msedge" : "");
@@ -40,7 +42,7 @@ const context = await chromium.launchPersistentContext(userDataDir, {
 const page = context.pages()[0] || await context.newPage();
 page.setDefaultTimeout(20_000);
 
-const articles = shouldReplace ? [] : await loadPreviousExport();
+const articles = shouldReplace || shouldFresh ? [] : await loadPreviousExport();
 const seenSources = new Set(articles.map((item) => item.sourceUrl).filter(Boolean));
 
 try {
@@ -81,7 +83,7 @@ try {
   }
 
   if (shouldImport) {
-    await importIntoSite(articles, { replace: shouldReplace });
+    await importIntoSite(articles, { replace: shouldReplace, updateExisting: shouldSync || Boolean(args.updateExisting) });
   }
 
   console.log(`Done. Exported ${articles.length} item(s) to ${join(outputDir, "articles.json")}`);
@@ -404,7 +406,7 @@ async function downloadImage(context, url, sourceUrl) {
   }
 }
 
-async function importIntoSite(items, { replace = false } = {}) {
+async function importIntoSite(items, { replace = false, updateExisting = false } = {}) {
   const store = new Store(dbPath);
   await store.load();
   if (replace) {
@@ -412,12 +414,12 @@ async function importIntoSite(items, { replace = false } = {}) {
     store.db.articles = store.db.articles.filter((article) => article.authorId !== "zhihu-import");
     store.db.comments = store.db.comments.filter((comment) => !zhihuArticleIds.has(comment.articleId));
   }
-  const existing = new Set(store.db.articles.map((article) => article.sourceUrl).filter(Boolean));
-  let count = 0;
+  const existing = new Map(store.db.articles.map((article) => [article.sourceUrl, article]).filter(([sourceUrl]) => Boolean(sourceUrl)));
+  let created = 0;
+  let updated = 0;
 
   for (const item of items) {
-    if (existing.has(item.sourceUrl)) continue;
-    await store.createArticle({
+    const input = {
       title: item.title,
       kind: item.kind,
       excerpt: item.excerpt,
@@ -426,11 +428,21 @@ async function importIntoSite(items, { replace = false } = {}) {
       publishedAt: item.publishedAt,
       status: "published",
       authorId: "zhihu-import"
-    });
-    count += 1;
+    };
+    const current = existing.get(item.sourceUrl);
+    if (current) {
+      if (!updateExisting) continue;
+      await store.updateArticle(current.id, input);
+      updated += 1;
+      continue;
+    }
+
+    const article = await store.createArticle(input);
+    existing.set(article.sourceUrl, article);
+    created += 1;
   }
 
-  console.log(`Imported ${count} new item(s) into ${dbPath}`);
+  console.log(`Imported ${created} new item(s), updated ${updated} existing item(s) into ${dbPath}`);
 }
 
 async function readProfileStats(page) {
