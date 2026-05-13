@@ -1,0 +1,9 @@
+[Unit]
+Description=Sync Zhihu content into Zhaji site
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=admin
+WorkingDirectory=/home/admin/zhaji-site
+ExecStart=/home/admin/sync-zhihu.sh

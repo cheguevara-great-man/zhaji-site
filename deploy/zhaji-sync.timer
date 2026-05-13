@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily Zhihu sync for Zhaji site
+
+[Timer]
+OnCalendar=*-*-* 04:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

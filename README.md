@@ -110,6 +110,8 @@ npm.cmd run sync:zhihu
 
 The sync imports new Zhihu items and updates existing items matched by `sourceUrl`. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
 
+The server deployment uses `deploy/zhaji-sync.service` and `deploy/zhaji-sync.timer` to run the same sync daily.
+
 ## Email
 
 By default, email is written to:
