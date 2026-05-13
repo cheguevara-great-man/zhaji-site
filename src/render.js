@@ -87,12 +87,11 @@ function inlineMarkdown(value) {
 
 export function layout({ title, user, body, active = "" }) {
   const nav = [
-    ["Home", "/"],
-    ["Archive", "/archive"]
+    ["归档", "/archive"]
   ];
 
   if (user?.isAdmin) {
-    nav.push(["Admin", "/admin"]);
+    nav.push(["管理", "/admin"]);
   }
 
   return `<!doctype html>
