@@ -401,11 +401,17 @@ async function importArticles(req, res, user) {
 }
 
 function articleCard(article) {
+  const excerpt = articleExcerpt(article);
   return `<a class="article-card" href="/articles/${encodeURIComponent(article.slug)}">
     <time>${formatDate(article.publishedAt)}</time>
     <h2>${escapeHtml(article.title)}</h2>
-    <p>${escapeHtml(article.excerpt || stripHtml(article.contentHtml).slice(0, 120))}</p>
+    <p>${escapeHtml(excerpt)}</p>
   </a>`;
+}
+
+function articleExcerpt(article) {
+  const source = article.excerpt || article.contentHtml;
+  return stripHtml(source).replace(/\s+/g, " ").trim().slice(0, 140);
 }
 
 function commentView(comment, currentUser) {
