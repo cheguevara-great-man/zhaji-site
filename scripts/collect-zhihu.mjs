@@ -47,6 +47,7 @@ page.setDefaultTimeout(20_000);
 
 const articles = shouldReplace || shouldFresh ? [] : await loadPreviousExport();
 const seenSources = new Set(articles.map((item) => item.sourceUrl).filter(Boolean));
+const existingSources = shouldSync && !shouldReplace ? await loadExistingSources() : new Map();
 
 try {
   const startUrl = loginOnly ? `https://www.zhihu.com/signin?next=${encodeURIComponent(profileUrl)}` : profileUrl;
@@ -149,42 +150,37 @@ async function collectPinsWithFallback(context, page, max) {
 }
 
 async function collectApiArticles(context, max) {
-  const include = "data[*].content,excerpt,title,created,updated,url,id,image_url";
+  const include = "data[*].excerpt,title,created,updated,url,id";
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/articles?include=${encodeURIComponent(include)}&sort_by=created`, max, "articles");
-  return data.map((item) => normalizeItem({
-    kind: "article",
-    title: item.title,
-    excerpt: item.excerpt,
-    contentHtml: item.content || markdownToHtml(item.excerpt || ""),
-    sourceUrl: item.url || `https://zhuanlan.zhihu.com/p/${item.id}`,
-    sourceCreatedAt: fromUnix(item.created || item.updated),
-    publishedAt: fromUnix(item.created || item.updated),
-    sourceUpdatedAt: fromUnix(item.updated || item.created)
-  }));
+  const candidates = filterChangedMetadata(data.map(articleFromApiItem), "articles");
+  const items = [];
+
+  for (const item of candidates) {
+    items.push(await fetchArticleDetail(context, item));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return items;
 }
 
 async function collectApiAnswers(context, max) {
-  const include = "data[*].content,question,title,created_time,updated_time,url,id";
+  const include = "data[*].question,title,created_time,updated_time,url,id";
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/answers?include=${encodeURIComponent(include)}&sort_by=created`, max, "answers");
-  return data.map((item) => {
-    const question = item.question?.title || item.question?.name || item.title || "知乎问题";
-    return normalizeItem({
-      kind: "answer",
-      title: `回答：${question}`,
-      excerpt: stripTags(item.content || "").slice(0, 180),
-      contentHtml: item.content || "",
-      sourceUrl: `https://www.zhihu.com/question/${item.question?.id || ""}/answer/${item.id}`,
-      sourceCreatedAt: fromUnix(item.created_time || item.updated_time),
-      publishedAt: fromUnix(item.created_time || item.updated_time),
-      sourceUpdatedAt: fromUnix(item.updated_time || item.created_time)
-    });
-  });
+  const candidates = filterChangedMetadata(data.map(answerFromApiItem), "answers");
+  const items = [];
+
+  for (const item of candidates) {
+    items.push(await fetchAnswerDetail(context, item));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return items;
 }
 
 async function collectApiPins(context, max) {
   const include = "data[*].content,created,updated,url,id";
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/pins?include=${encodeURIComponent(include)}`, max, "pins");
-  return data.map((item) => {
+  const items = data.map((item) => {
     const html = pinContentHtml(item.content);
     const text = stripTags(html).replace(/\s+/g, " ").trim();
     return normalizeItem({
@@ -198,6 +194,85 @@ async function collectApiPins(context, max) {
       sourceUpdatedAt: fromUnix(item.updated || item.created)
     });
   });
+  return filterChangedMetadata(items, "pins");
+}
+
+function articleFromApiItem(item) {
+  return normalizeItem({
+    id: item.id,
+    kind: "article",
+    title: item.title,
+    excerpt: item.excerpt,
+    contentHtml: item.content || "",
+    sourceUrl: item.url || `https://zhuanlan.zhihu.com/p/${item.id}`,
+    sourceCreatedAt: fromUnix(item.created || item.updated),
+    publishedAt: fromUnix(item.created || item.updated),
+    sourceUpdatedAt: fromUnix(item.updated || item.created)
+  });
+}
+
+function answerFromApiItem(item) {
+  const question = item.question?.title || item.question?.name || item.title || "知乎问题";
+  return normalizeItem({
+    id: item.id,
+    questionId: item.question?.id || "",
+    kind: "answer",
+    title: `回答：${question}`,
+    excerpt: stripTags(item.content || "").slice(0, 180),
+    contentHtml: item.content || "",
+    sourceUrl: `https://www.zhihu.com/question/${item.question?.id || ""}/answer/${item.id}`,
+    sourceCreatedAt: fromUnix(item.created_time || item.updated_time),
+    publishedAt: fromUnix(item.created_time || item.updated_time),
+    sourceUpdatedAt: fromUnix(item.updated_time || item.created_time)
+  });
+}
+
+async function fetchArticleDetail(context, item) {
+  const include = "content,excerpt,title,created,updated,url,id";
+  const url = `https://www.zhihu.com/api/v4/articles/${encodeURIComponent(item.id)}?include=${encodeURIComponent(include)}`;
+  const response = await requestWithRetry(context, url);
+  if (response.ok()) {
+    const detail = articleFromApiItem(await response.json());
+    if (detail.contentHtml) return detail;
+  }
+  console.warn(`Article detail API failed, falling back to page scraping: ${item.sourceUrl}`);
+  return extractArticle(context, item.sourceUrl);
+}
+
+async function fetchAnswerDetail(context, item) {
+  const include = "content,question,title,created_time,updated_time,url,id";
+  const url = `https://www.zhihu.com/api/v4/answers/${encodeURIComponent(item.id)}?include=${encodeURIComponent(include)}`;
+  const response = await requestWithRetry(context, url);
+  if (response.ok()) {
+    const detail = answerFromApiItem(await response.json());
+    if (detail.contentHtml) return detail;
+  }
+  console.warn(`Answer detail API failed, falling back to page scraping: ${item.sourceUrl}`);
+  return extractAnswer(context, item.sourceUrl);
+}
+
+function filterChangedMetadata(items, label) {
+  if (!shouldSync || shouldReplace) return items;
+
+  let skipped = 0;
+  const candidates = items.filter((item) => {
+    const current = existingSources.get(item.sourceUrl);
+    if (!current) return true;
+    if (needsSourceTimeBackfill(current, item)) return true;
+
+    const currentSourceUpdatedAt = comparableDate(current.sourceUpdatedAt || current.publishedAt);
+    const nextSourceUpdatedAt = comparableDate(item.sourceUpdatedAt || item.sourceCreatedAt || item.publishedAt);
+    if (!currentSourceUpdatedAt || !nextSourceUpdatedAt) return true;
+    if (currentSourceUpdatedAt !== nextSourceUpdatedAt) return true;
+
+    skipped += 1;
+    return false;
+  });
+
+  if (skipped) {
+    console.log(`Skipped ${skipped} unchanged ${label} before content fetch.`);
+  }
+  return candidates;
 }
 
 async function collectApiPages(context, firstUrl, max, label) {
@@ -744,6 +819,12 @@ async function loadPreviousExport() {
   } catch {
     return [];
   }
+}
+
+async function loadExistingSources() {
+  const store = new Store(dbPath);
+  await store.load();
+  return new Map(store.db.articles.map((article) => [article.sourceUrl, article]).filter(([sourceUrl]) => Boolean(sourceUrl)));
 }
 
 async function saveExport(items) {

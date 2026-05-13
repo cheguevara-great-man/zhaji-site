@@ -109,7 +109,7 @@ Run a non-destructive sync:
 npm.cmd run sync:zhihu
 ```
 
-The sync imports new Zhihu items and updates existing items matched by `sourceUrl` only when Zhihu's source update time changes. It stores Zhihu's creation time as `sourceCreatedAt` and Zhihu's modification time as `sourceUpdatedAt`. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
+The sync imports new Zhihu items and updates existing items matched by `sourceUrl` only when Zhihu's source update time changes. It stores Zhihu's creation time as `sourceCreatedAt` and Zhihu's modification time as `sourceUpdatedAt`. The collector first reads list metadata and only fetches full content/images for new or changed items. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
 
 The server deployment uses `deploy/zhaji-sync.service` and `deploy/zhaji-sync.timer` to run the same sync daily.
 
