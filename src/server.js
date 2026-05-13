@@ -145,7 +145,7 @@ function archive(res, user, url) {
     </nav>
     <section class="archive-list">
       ${articles.map((article) => `<a class="archive-row" href="/articles/${encodeURIComponent(article.slug)}">
-        <span><small>${kindLabel(article.kind)}</small>${escapeHtml(article.title)}</span>
+        <span><small>${kindLabel(article.kind)}</small>${escapeHtml(displayTitle(article))}</span>
         <time>${formatDate(articleSourceCreatedAt(article))}</time>
       </a>`).join("") || `<div class="empty">暂无文章。</div>`}
     </section>`
@@ -158,12 +158,12 @@ function articlePage(res, user, slug) {
 
   const comments = store.listComments(article.id);
   sendHtml(res, 200, layout({
-    title: article.title,
+    title: displayTitle(article),
     user,
     body: `<article class="article">
       <header>
         <time>${formatDate(articleSourceCreatedAt(article))}</time>
-        <h1>${escapeHtml(article.title)}</h1>
+        <h1>${escapeHtml(displayTitle(article))}</h1>
       </header>
       <div class="prose">${article.contentHtml}</div>
       ${article.sourceUrl ? `<footer class="article-footer"><a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a></footer>` : ""}
@@ -354,7 +354,7 @@ function adminDashboard(res, user) {
     body: `<section class="admin-head"><div><h1>内容管理</h1><p>发布、编辑和导入你的文章。</p></div><div><a class="button-link" href="/admin/import">导入</a><a class="primary-action" href="/admin/new">新文章</a></div></section>
     <section class="admin-list">
       ${articles.map((article) => `<div class="admin-row">
-        <div><strong>${escapeHtml(article.title)}</strong><span>${article.status} · ${formatDate(articleSourceCreatedAt(article))}</span></div>
+        <div><strong>${escapeHtml(displayTitle(article))}</strong><span>${article.status} · ${formatDate(articleSourceCreatedAt(article))}</span></div>
         <div class="row-actions"><a href="/articles/${encodeURIComponent(article.slug)}">查看</a><a href="/admin/edit/${article.id}">编辑</a><form method="post" action="/admin/delete/${article.id}" data-confirm="确定删除这篇文章？"><button>删除</button></form></div>
       </div>`).join("") || `<div class="empty">暂无文章。</div>`}
     </section>`
@@ -451,7 +451,7 @@ function articleCard(article) {
   const excerpt = articleExcerpt(article);
   return `<a class="article-card" href="/articles/${encodeURIComponent(article.slug)}">
     <time>${formatDate(articleSourceCreatedAt(article))}</time>
-    <h2>${escapeHtml(article.title)}</h2>
+    <h2>${escapeHtml(displayTitle(article))}</h2>
     <p>${escapeHtml(excerpt)}</p>
   </a>`;
 }
@@ -459,6 +459,13 @@ function articleCard(article) {
 function articleExcerpt(article) {
   const source = article.excerpt || article.contentHtml;
   return stripHtml(source).replace(/\s+/g, " ").trim().slice(0, 140);
+}
+
+function displayTitle(article) {
+  const title = String(article?.title || "");
+  if (article?.kind === "answer") return title.replace(/^回答[:：]\s*/, "");
+  if (article?.kind === "pin") return title.replace(/^想法[:：]\s*/, "");
+  return title;
 }
 
 function commentView(comment, currentUser) {

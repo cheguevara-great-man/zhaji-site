@@ -186,7 +186,7 @@ async function collectApiPins(context, max) {
     const text = plainTextFromHtml(html);
     return normalizeItem({
       kind: "pin",
-      title: `想法：${text.slice(0, 42) || item.id}`,
+      title: text.slice(0, 42) || item.id,
       excerpt: text.slice(0, 180),
       contentHtml: html,
       sourceUrl: normalizeZhihuUrl(item.url || `https://www.zhihu.com/pin/${item.id}`),
@@ -218,7 +218,7 @@ function answerFromApiItem(item) {
     id: item.id,
     questionId: item.question?.id || "",
     kind: "answer",
-    title: `回答：${question}`,
+    title: question,
     excerpt: stripTags(item.content || "").slice(0, 180),
     contentHtml: item.content || "",
     sourceUrl: `https://www.zhihu.com/question/${item.question?.id || ""}/answer/${item.id}`,
@@ -404,7 +404,7 @@ async function collectPins(page, url, expected) {
       if (!items.has(sourceUrl)) {
         items.set(sourceUrl, {
           kind: "pin",
-          title: `想法：${pin.text.replace(/\s+/g, " ").slice(0, 42) || "未命名想法"}`,
+          title: pin.text.replace(/\s+/g, " ").slice(0, 42) || "未命名想法",
           excerpt: pin.text.replace(/\s+/g, " ").slice(0, 180),
           contentHtml: pin.html || markdownToHtml(pin.text),
           sourceUrl,
@@ -491,7 +491,7 @@ async function extractAnswer(context, url) {
         || publishedAt;
       return {
         kind: "answer",
-        title: `回答：${question}`,
+        title: question,
         excerpt: clone.textContent.trim().replace(/\s+/g, " ").slice(0, 180),
         contentHtml: clone.innerHTML,
         sourceUrl: location.href,
