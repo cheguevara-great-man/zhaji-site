@@ -13,6 +13,7 @@ const publicDir = join(root, "public");
 const store = new Store(process.env.DB_PATH || join(root, "data", "db.json"));
 const emailer = new Emailer(process.env.OUTBOX_DIR || join(root, "data", "outbox"));
 const port = Number(process.env.PORT || 4173);
+const homePageSize = 12;
 
 await store.load();
 
@@ -46,6 +47,7 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/") return home(res, user);
+  if (req.method === "GET" && url.pathname === "/api/articles") return articleFeed(res, url);
   if (req.method === "GET" && url.pathname === "/archive") return archive(res, user, url);
   if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()));
 
@@ -84,7 +86,8 @@ function getCurrentUser(req) {
 }
 
 function home(res, user) {
-  const articles = store.listArticles().slice(0, 6);
+  const allArticles = store.listArticles();
+  const articles = allArticles.slice(0, homePageSize);
   sendHtml(res, 200, layout({
     title: "札记",
     user,
@@ -92,15 +95,29 @@ function home(res, user) {
     body: `<section class="hero">
       <div>
         <p class="eyebrow">札记</p>
-        <h1>把当时真正想过的事，按原样留下。</h1>
-        <p>文章、回答、想法、小说和随笔都放在这里；不把它们总结成一种立场，只保留写下它们时的判断、困惑和语气。</p>
+        <h1>思想是人在时间里存在的痕迹。</h1>
+        <p>文章、回答、想法、小说和随笔都放在这里。</p>
       </div>
     </section>
     <section class="section-head"><h2>最近更新</h2><a href="/archive">全部目录</a></section>
-    <section class="article-grid">
+    <section class="article-grid" data-feed data-next-offset="${articles.length}" data-page-size="${homePageSize}" data-has-more="${allArticles.length > articles.length ? "true" : "false"}">
       ${articles.length ? articles.map(articleCard).join("") : `<div class="empty">还没有文章。注册第一个账号后进入管理页发布或导入。</div>`}
-    </section>`
+    </section>
+    <div class="feed-sentinel" data-feed-sentinel>${allArticles.length > articles.length ? "继续向下滚动" : "已经到底了"}</div>`
   }));
+}
+
+function articleFeed(res, url) {
+  const offset = clampInteger(url.searchParams.get("offset"), 0, 100000);
+  const limit = clampInteger(url.searchParams.get("limit"), 1, 24);
+  const allArticles = store.listArticles();
+  const articles = allArticles.slice(offset, offset + limit);
+  const nextOffset = offset + articles.length;
+  sendJson(res, 200, {
+    html: articles.map(articleCard).join(""),
+    nextOffset,
+    hasMore: nextOffset < allArticles.length
+  });
 }
 
 function archive(res, user, url) {
@@ -431,6 +448,11 @@ function sendHtml(res, status, body) {
   res.end(body);
 }
 
+function sendJson(res, status, body) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+  res.end(JSON.stringify(body));
+}
+
 function redirect(res, location) {
   res.writeHead(303, { Location: location });
   res.end();
@@ -453,6 +475,12 @@ function fromDateInput(value) {
 
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]*>/g, "");
+}
+
+function clampInteger(value, min, max) {
+  const number = Number.parseInt(value, 10);
+  if (Number.isNaN(number)) return min;
+  return Math.max(min, Math.min(max, number));
 }
 
 function normalizeKindFilter(kind) {

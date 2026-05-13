@@ -167,6 +167,14 @@ p {
   gap: 16px;
 }
 
+.feed-sentinel {
+  min-height: 52px;
+  padding: 26px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
 .article-card,
 .auth-panel,
 .editor,
