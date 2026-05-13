@@ -105,7 +105,7 @@ export function layout({ title, user, body, active = "" }) {
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">蔡吧札记</a>
+    <a class="brand" href="/">札记</a>
     <nav>
       ${nav.map(([label, href]) => `<a class="${active === href ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
