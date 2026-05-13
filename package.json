@@ -8,6 +8,8 @@
     "dev": "node --env-file=.env --watch src/server.js",
     "import:zhihu": "node scripts/import-zhihu-export.mjs",
     "collect:zhihu": "node scripts/collect-zhihu.mjs",
+    "login:zhihu": "node scripts/collect-zhihu.mjs --login --channel chrome",
+    "login:zhihu:server": "node scripts/zhihu-server-login.mjs",
     "sync:zhihu": "node scripts/collect-zhihu.mjs --sync --import --headless --noLoginWait",
     "repair:zhihu": "node scripts/repair-zhihu-db.mjs",
     "smoke": "node scripts/smoke-test.mjs"

@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { Store } from "../src/store.js";
@@ -14,6 +14,7 @@ const urlToken = profilePath.split("/").filter(Boolean).pop();
 const outputDir = resolve(args.output || join(root, "data", "zhihu-export"));
 const uploadDir = resolve(args.uploads || join(root, "public", "uploads", "zhihu"));
 const userDataDir = resolve(args.browserProfile || join(root, "data", "playwright-profile", "zhihu"));
+const storagePath = resolve(args.storage || process.env.ZHIHU_STORAGE_PATH || join(root, "data", "zhihu-storage.json"));
 const dbPath = resolve(args.db || join(root, "data", "db.json"));
 const maxPosts = Number(args.maxPosts || args.max || 0);
 const maxAnswers = Number(args.maxAnswers || args.max || 0);
@@ -24,6 +25,7 @@ const shouldReplace = Boolean(args.replace);
 const shouldSync = Boolean(args.sync);
 const shouldFresh = Boolean(args.fresh || shouldSync);
 const headless = Boolean(args.headless);
+const loginOnly = Boolean(args.login);
 const waitForLogin = !args.noLoginWait;
 const browserChannel = args.channel || (process.platform === "win32" ? "msedge" : "");
 const pageSize = Number(args.pageSize || 5);
@@ -38,6 +40,7 @@ const context = await chromium.launchPersistentContext(userDataDir, {
   viewport: { width: 1365, height: 900 },
   locale: "zh-CN"
 });
+await loadStorageState(context);
 
 const page = context.pages()[0] || await context.newPage();
 page.setDefaultTimeout(20_000);
@@ -46,48 +49,57 @@ const articles = shouldReplace || shouldFresh ? [] : await loadPreviousExport();
 const seenSources = new Set(articles.map((item) => item.sourceUrl).filter(Boolean));
 
 try {
-  await page.goto(profileUrl, { waitUntil: "domcontentloaded" });
+  const startUrl = loginOnly ? `https://www.zhihu.com/signin?next=${encodeURIComponent(profileUrl)}` : profileUrl;
+  await page.goto(startUrl, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("body", { timeout: 20_000 });
   await closeLoginModal(page);
-  if (waitForLogin) {
+  if (loginOnly) {
+    console.log("Please complete Zhihu login in the opened browser. Waiting for the login session cookie...");
+    await waitForZhihuSession(context, Number(args.loginWaitMs || 600_000));
+    await saveStorageState(context);
+    console.log(`Saved Zhihu browser storage to ${storagePath}`);
+  } else {
+    if (waitForLogin) {
     await waitForManualLoginIfNeeded(page);
-  }
-
-  const profile = await readProfileStats(page);
-  console.log(`Profile: ${profile.name || profileUrl}`);
-  console.log(`Expected: posts=${profile.posts ?? "?"}, answers=${profile.answers ?? "?"}, pins=${profile.pins ?? "?"}`);
-
-  if (types.has("posts")) {
-    const posts = await collectArticles(context, page, maxPosts);
-    for (const post of posts) {
-      if (seenSources.has(post.sourceUrl)) continue;
-      await addItem(await localizeImages(context, post));
     }
-  }
 
-  if (types.has("answers")) {
-    const answers = await collectAnswers(context, page, maxAnswers);
-    for (const answer of answers) {
-      if (seenSources.has(answer.sourceUrl)) continue;
-      await addItem(await localizeImages(context, answer));
+    const profile = await readProfileStats(page);
+    console.log(`Profile: ${profile.name || profileUrl}`);
+    console.log(`Expected: posts=${profile.posts ?? "?"}, answers=${profile.answers ?? "?"}, pins=${profile.pins ?? "?"}`);
+
+    if (types.has("posts")) {
+      const posts = await collectArticles(context, page, maxPosts);
+      for (const post of posts) {
+        if (seenSources.has(post.sourceUrl)) continue;
+        await addItem(await localizeImages(context, post));
+      }
     }
-  }
 
-  if (types.has("pins")) {
-    const pins = await collectPinsWithFallback(context, page, maxPins);
-    for (const pin of pins) {
-      if (seenSources.has(pin.sourceUrl)) continue;
-      const item = await localizeImages(context, pin);
-      await addItem(item);
+    if (types.has("answers")) {
+      const answers = await collectAnswers(context, page, maxAnswers);
+      for (const answer of answers) {
+        if (seenSources.has(answer.sourceUrl)) continue;
+        await addItem(await localizeImages(context, answer));
+      }
     }
-  }
 
-  if (shouldImport) {
-    await importIntoSite(articles, { replace: shouldReplace, updateExisting: shouldSync || Boolean(args.updateExisting) });
-  }
+    if (types.has("pins")) {
+      const pins = await collectPinsWithFallback(context, page, maxPins);
+      for (const pin of pins) {
+        if (seenSources.has(pin.sourceUrl)) continue;
+        const item = await localizeImages(context, pin);
+        await addItem(item);
+      }
+    }
 
-  console.log(`Done. Exported ${articles.length} item(s) to ${join(outputDir, "articles.json")}`);
+    if (shouldImport) {
+      await importIntoSite(articles, { replace: shouldReplace, updateExisting: shouldSync || Boolean(args.updateExisting) });
+    }
+
+    console.log(`Done. Exported ${articles.length} item(s) to ${join(outputDir, "articles.json")}`);
+  }
 } finally {
+  await saveStorageState(context).catch(() => {});
   await context.close();
 }
 
@@ -145,7 +157,9 @@ async function collectApiArticles(context, max) {
     excerpt: item.excerpt,
     contentHtml: item.content || markdownToHtml(item.excerpt || ""),
     sourceUrl: item.url || `https://zhuanlan.zhihu.com/p/${item.id}`,
-    publishedAt: fromUnix(item.created || item.updated)
+    sourceCreatedAt: fromUnix(item.created || item.updated),
+    publishedAt: fromUnix(item.created || item.updated),
+    sourceUpdatedAt: fromUnix(item.updated || item.created)
   }));
 }
 
@@ -160,7 +174,9 @@ async function collectApiAnswers(context, max) {
       excerpt: stripTags(item.content || "").slice(0, 180),
       contentHtml: item.content || "",
       sourceUrl: `https://www.zhihu.com/question/${item.question?.id || ""}/answer/${item.id}`,
-      publishedAt: fromUnix(item.created_time || item.updated_time)
+      sourceCreatedAt: fromUnix(item.created_time || item.updated_time),
+      publishedAt: fromUnix(item.created_time || item.updated_time),
+      sourceUpdatedAt: fromUnix(item.updated_time || item.created_time)
     });
   });
 }
@@ -177,7 +193,9 @@ async function collectApiPins(context, max) {
       excerpt: text.slice(0, 180),
       contentHtml: html,
       sourceUrl: normalizeZhihuUrl(item.url || `https://www.zhihu.com/pin/${item.id}`),
-      publishedAt: fromUnix(item.created || item.updated)
+      sourceCreatedAt: fromUnix(item.created || item.updated),
+      publishedAt: fromUnix(item.created || item.updated),
+      sourceUpdatedAt: fromUnix(item.updated || item.created)
     });
   });
 }
@@ -314,7 +332,9 @@ async function collectPins(page, url, expected) {
           excerpt: pin.text.replace(/\s+/g, " ").slice(0, 180),
           contentHtml: pin.html || markdownToHtml(pin.text),
           sourceUrl,
+          sourceCreatedAt: parseZhihuDate(pin.time),
           publishedAt: parseZhihuDate(pin.time),
+          sourceUpdatedAt: parseZhihuDate(pin.time),
           status: "published"
         });
       }
@@ -350,13 +370,18 @@ async function extractArticle(context, url) {
       const publishedAt = document.querySelector("meta[property='article:published_time']")?.content
         || document.querySelector("time")?.getAttribute("datetime")
         || "";
+      const sourceUpdatedAt = document.querySelector("meta[property='article:modified_time']")?.content
+        || document.querySelector("meta[itemprop='dateModified']")?.content
+        || publishedAt;
       return {
         kind: "article",
         title,
         excerpt: clone.textContent.trim().replace(/\s+/g, " ").slice(0, 180),
         contentHtml: clone.innerHTML,
         sourceUrl: location.href,
-        publishedAt
+        sourceCreatedAt: publishedAt,
+        publishedAt,
+        sourceUpdatedAt
       };
     });
     return localizeImages(context, normalizeItem(raw));
@@ -386,13 +411,17 @@ async function extractAnswer(context, url) {
       const publishedAt = answerRoot.querySelector("meta[itemprop='dateCreated']")?.content
         || answerRoot.querySelector("time")?.getAttribute("datetime")
         || "";
+      const sourceUpdatedAt = answerRoot.querySelector("meta[itemprop='dateModified']")?.content
+        || publishedAt;
       return {
         kind: "answer",
         title: `回答：${question}`,
         excerpt: clone.textContent.trim().replace(/\s+/g, " ").slice(0, 180),
         contentHtml: clone.innerHTML,
         sourceUrl: location.href,
-        publishedAt
+        sourceCreatedAt: publishedAt,
+        publishedAt,
+        sourceUpdatedAt
       };
     });
     return localizeImages(context, normalizeItem(raw));
@@ -462,6 +491,8 @@ async function importIntoSite(items, { replace = false, updateExisting = false }
   const existing = new Map(store.db.articles.map((article) => [article.sourceUrl, article]).filter(([sourceUrl]) => Boolean(sourceUrl)));
   let created = 0;
   let updated = 0;
+  let metadataUpdated = 0;
+  let unchanged = 0;
 
   for (const item of items) {
     const input = {
@@ -470,13 +501,24 @@ async function importIntoSite(items, { replace = false, updateExisting = false }
       excerpt: item.excerpt,
       contentHtml: item.contentHtml,
       sourceUrl: item.sourceUrl,
+      sourceCreatedAt: item.sourceCreatedAt,
       publishedAt: item.publishedAt,
+      sourceUpdatedAt: item.sourceUpdatedAt,
       status: "published",
       authorId: "zhihu-import"
     };
     const current = existing.get(item.sourceUrl);
     if (current) {
       if (!updateExisting) continue;
+      if (!hasArticleChanged(current, input)) {
+        if (needsSourceTimeBackfill(current, input)) {
+          await store.updateArticle(current.id, { ...current, ...input });
+          metadataUpdated += 1;
+        } else {
+          unchanged += 1;
+        }
+        continue;
+      }
       await store.updateArticle(current.id, input);
       updated += 1;
       continue;
@@ -487,7 +529,56 @@ async function importIntoSite(items, { replace = false, updateExisting = false }
     created += 1;
   }
 
-  console.log(`Imported ${created} new item(s), updated ${updated} existing item(s) into ${dbPath}`);
+  console.log(`Imported ${created} new item(s), updated ${updated} changed item(s), backfilled ${metadataUpdated} time metadata item(s), skipped ${unchanged} unchanged item(s) into ${dbPath}`);
+}
+
+function hasArticleChanged(current, next) {
+  const currentSourceUpdatedAt = comparableDate(current.sourceUpdatedAt || current.publishedAt);
+  const nextSourceUpdatedAt = comparableDate(next.sourceUpdatedAt || next.sourceCreatedAt || next.publishedAt);
+  if (currentSourceUpdatedAt && nextSourceUpdatedAt) {
+    return currentSourceUpdatedAt !== nextSourceUpdatedAt;
+  }
+
+  return normalizeComparable(current.title) !== normalizeComparable(next.title)
+    || normalizeComparable(current.kind) !== normalizeComparable(next.kind)
+    || normalizeComparable(current.excerpt) !== normalizeComparable(next.excerpt)
+    || normalizeComparable(current.contentHtml) !== normalizeComparable(next.contentHtml)
+    || normalizeComparable(current.sourceUrl) !== normalizeComparable(next.sourceUrl)
+    || comparableDate(current.sourceCreatedAt || current.publishedAt) !== comparableDate(next.sourceCreatedAt || next.publishedAt);
+}
+
+function needsSourceTimeBackfill(current, next) {
+  return Boolean((next.sourceCreatedAt && !current.sourceCreatedAt) || (next.sourceUpdatedAt && !current.sourceUpdatedAt));
+}
+
+function comparableDate(value) {
+  if (!value) return "";
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? String(value) : new Date(parsed).toISOString();
+}
+
+function normalizeComparable(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+async function loadStorageState(context) {
+  try {
+    const raw = await readFile(storagePath, "utf8");
+    const state = JSON.parse(raw);
+    if (Array.isArray(state.cookies) && state.cookies.length) {
+      await context.addCookies(state.cookies);
+      console.log(`Loaded Zhihu browser storage from ${storagePath}`);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.warn(`Could not load Zhihu browser storage: ${error.message}`);
+    }
+  }
+}
+
+async function saveStorageState(context) {
+  await mkdir(dirname(storagePath), { recursive: true });
+  await context.storageState({ path: storagePath });
 }
 
 async function readProfileStats(page) {
@@ -504,6 +595,16 @@ async function readProfileStats(page) {
       pins: pick("想法")
     };
   });
+}
+
+async function waitForZhihuSession(context, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const cookies = await context.cookies("https://www.zhihu.com");
+    if (cookies.some((cookie) => cookie.name === "z_c0" && cookie.value)) return;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error("Timed out waiting for Zhihu login. Please scan or finish verification in the browser.");
 }
 
 async function waitForManualLoginIfNeeded(page) {
@@ -539,13 +640,17 @@ async function expandContent(page) {
 }
 
 function normalizeItem(item) {
+  const sourceCreatedAt = parseOptionalZhihuDate(item.sourceCreatedAt || item.publishedAt);
+  const sourceUpdatedAt = parseOptionalZhihuDate(item.sourceUpdatedAt || item.sourceCreatedAt || item.publishedAt);
   return {
     ...item,
     title: String(item.title || "未命名").trim(),
     excerpt: String(item.excerpt || "").trim(),
     contentHtml: String(item.contentHtml || "").trim(),
     sourceUrl: normalizeZhihuUrl(item.sourceUrl),
-    publishedAt: parseZhihuDate(item.publishedAt),
+    sourceCreatedAt,
+    publishedAt: sourceCreatedAt || parseZhihuDate(item.publishedAt),
+    sourceUpdatedAt,
     status: "published"
   };
 }
@@ -567,6 +672,11 @@ function parseZhihuDate(value) {
   if (!value) return new Date().toISOString();
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString();
+}
+
+function parseOptionalZhihuDate(value) {
+  if (!value) return "";
+  return parseZhihuDate(value);
 }
 
 function fromUnix(value) {

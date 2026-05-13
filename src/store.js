@@ -142,7 +142,7 @@ export class Store {
     return [...this.db.articles]
       .filter((article) => includeDrafts || article.status === "published")
       .filter((article) => !kind || article.kind === kind)
-      .sort((a, b) => Date.parse(b.publishedAt || b.createdAt) - Date.parse(a.publishedAt || a.createdAt));
+      .sort((a, b) => Date.parse(displaySourceCreatedAt(b)) - Date.parse(displaySourceCreatedAt(a)));
   }
 
   getArticleBySlug(slug, { includeDrafts = false } = {}) {
@@ -159,6 +159,8 @@ export class Store {
   async createArticle(input) {
     const now = new Date().toISOString();
     const baseSlug = slugify(input.slug || input.title);
+    const sourceCreatedAt = input.sourceCreatedAt || input.publishedAt || now;
+    const sourceUpdatedAt = input.sourceUpdatedAt || sourceCreatedAt;
     const article = {
       id: randomToken(12),
       title: String(input.title).trim(),
@@ -171,7 +173,9 @@ export class Store {
       authorId: input.authorId,
       createdAt: now,
       updatedAt: now,
-      publishedAt: input.publishedAt || now
+      publishedAt: sourceCreatedAt,
+      sourceCreatedAt,
+      sourceUpdatedAt
     };
 
     this.db.articles.push(article);
@@ -189,7 +193,9 @@ export class Store {
     article.contentHtml = String(input.contentHtml || "");
     article.sourceUrl = String(input.sourceUrl || "").trim();
     article.status = input.status === "draft" ? "draft" : "published";
-    article.publishedAt = input.publishedAt || article.publishedAt;
+    article.sourceCreatedAt = input.sourceCreatedAt || input.publishedAt || article.sourceCreatedAt || article.publishedAt;
+    article.sourceUpdatedAt = input.sourceUpdatedAt || article.sourceUpdatedAt || article.sourceCreatedAt;
+    article.publishedAt = article.sourceCreatedAt;
     article.updatedAt = new Date().toISOString();
 
     await this.save();
@@ -266,6 +272,10 @@ export class Store {
 
 function normalizeKind(kind) {
   return ["article", "answer", "pin"].includes(kind) ? kind : "article";
+}
+
+function displaySourceCreatedAt(article) {
+  return article.sourceCreatedAt || article.publishedAt || article.createdAt || new Date(0).toISOString();
 }
 
 function normalizeEmail(email) {

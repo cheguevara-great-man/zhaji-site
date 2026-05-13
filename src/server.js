@@ -146,7 +146,7 @@ function archive(res, user, url) {
     <section class="archive-list">
       ${articles.map((article) => `<a class="archive-row" href="/articles/${encodeURIComponent(article.slug)}">
         <span><small>${kindLabel(article.kind)}</small>${escapeHtml(article.title)}</span>
-        <time>${formatDate(article.publishedAt)}</time>
+        <time>${formatDate(articleSourceCreatedAt(article))}</time>
       </a>`).join("") || `<div class="empty">暂无文章。</div>`}
     </section>`
   }));
@@ -162,8 +162,9 @@ function articlePage(res, user, slug) {
     user,
     body: `<article class="article">
       <header>
-        <time>${formatDate(article.publishedAt)}</time>
+        <time>${formatDate(articleSourceCreatedAt(article))}</time>
         <h1>${escapeHtml(article.title)}</h1>
+        ${article.sourceUpdatedAt && article.sourceUpdatedAt !== articleSourceCreatedAt(article) ? `<p class="muted">知乎修改：${formatDate(article.sourceUpdatedAt)}</p>` : ""}
         ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ""}
         ${article.sourceUrl ? `<a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a>` : ""}
       </header>
@@ -355,7 +356,7 @@ function adminDashboard(res, user) {
     body: `<section class="admin-head"><div><h1>内容管理</h1><p>发布、编辑和导入你的文章。</p></div><div><a class="button-link" href="/admin/import">导入</a><a class="primary-action" href="/admin/new">新文章</a></div></section>
     <section class="admin-list">
       ${articles.map((article) => `<div class="admin-row">
-        <div><strong>${escapeHtml(article.title)}</strong><span>${article.status} · ${formatDate(article.publishedAt)}</span></div>
+        <div><strong>${escapeHtml(article.title)}</strong><span>${article.status} · ${formatDate(articleSourceCreatedAt(article))}</span></div>
         <div class="row-actions"><a href="/articles/${encodeURIComponent(article.slug)}">查看</a><a href="/admin/edit/${article.id}">编辑</a><form method="post" action="/admin/delete/${article.id}" data-confirm="确定删除这篇文章？"><button>删除</button></form></div>
       </div>`).join("") || `<div class="empty">暂无文章。</div>`}
     </section>`
@@ -372,7 +373,7 @@ function articleForm(res, user, article = null) {
         <label>标题<input name="title" required value="${escapeHtml(article?.title || "")}"></label>
         <label>摘要<textarea name="excerpt" rows="3">${escapeHtml(article?.excerpt || "")}</textarea></label>
         <label>原文链接<input name="sourceUrl" value="${escapeHtml(article?.sourceUrl || "")}"></label>
-        <label>发布时间<input type="datetime-local" name="publishedAt" value="${toDateInput(article?.publishedAt)}"></label>
+        <label>知乎创建时间<input type="datetime-local" name="publishedAt" value="${toDateInput(articleSourceCreatedAt(article || {}))}"></label>
         <label>类型<select name="kind"><option value="article" ${article?.kind !== "answer" && article?.kind !== "pin" ? "selected" : ""}>文章</option><option value="answer" ${article?.kind === "answer" ? "selected" : ""}>回答</option><option value="pin" ${article?.kind === "pin" ? "selected" : ""}>想法</option></select></label>
         <label>状态<select name="status"><option value="published" ${article?.status !== "draft" ? "selected" : ""}>发布</option><option value="draft" ${article?.status === "draft" ? "selected" : ""}>草稿</option></select></label>
         <label>格式<select name="format"><option value="markdown">Markdown</option><option value="html" ${article ? "selected" : ""}>HTML</option></select></label>
@@ -391,6 +392,7 @@ async function saveArticle(req, res, user, id = null) {
     kind: form.get("kind"),
     excerpt: form.get("excerpt"),
     sourceUrl: form.get("sourceUrl"),
+    sourceCreatedAt: fromDateInput(form.get("publishedAt")),
     publishedAt: fromDateInput(form.get("publishedAt")),
     status: form.get("status"),
     contentHtml: content,
@@ -436,7 +438,9 @@ async function importArticles(req, res, user) {
       excerpt: item.excerpt || item.summary || "",
       contentHtml: item.html || item.contentHtml || markdownToHtml(item.markdown || item.content || ""),
       sourceUrl: item.sourceUrl || item.url || "",
-      publishedAt: item.publishedAt || new Date().toISOString(),
+      sourceCreatedAt: item.sourceCreatedAt || item.publishedAt || new Date().toISOString(),
+      sourceUpdatedAt: item.sourceUpdatedAt || item.sourceCreatedAt || item.publishedAt || new Date().toISOString(),
+      publishedAt: item.sourceCreatedAt || item.publishedAt || new Date().toISOString(),
       status: item.status || "published",
       authorId: user.id
     });
@@ -448,7 +452,7 @@ async function importArticles(req, res, user) {
 function articleCard(article) {
   const excerpt = articleExcerpt(article);
   return `<a class="article-card" href="/articles/${encodeURIComponent(article.slug)}">
-    <time>${formatDate(article.publishedAt)}</time>
+    <time>${formatDate(articleSourceCreatedAt(article))}</time>
     <h2>${escapeHtml(article.title)}</h2>
     <p>${escapeHtml(excerpt)}</p>
   </a>`;
@@ -512,6 +516,10 @@ function redirect(res, location) {
 function formatDate(value) {
   if (!value) return "";
   return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+}
+
+function articleSourceCreatedAt(article) {
+  return article?.sourceCreatedAt || article?.publishedAt || "";
 }
 
 function toDateInput(value) {

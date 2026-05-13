@@ -1,6 +1,7 @@
 data/db.json
 data/outbox
 data/playwright-profile
+data/zhihu-storage.json
 data/zhihu-export
 public/uploads/zhihu
 .playwright-cli

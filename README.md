@@ -39,7 +39,8 @@ JSON format:
     "title": "Article title",
     "markdown": "# Heading\nBody text",
     "sourceUrl": "https://zhuanlan.zhihu.com/p/...",
-    "publishedAt": "2026-05-12T00:00:00.000Z"
+    "sourceCreatedAt": "2026-05-12T00:00:00.000Z",
+    "sourceUpdatedAt": "2026-05-13T00:00:00.000Z"
   }
 ]
 ```
@@ -108,9 +109,23 @@ Run a non-destructive sync:
 npm.cmd run sync:zhihu
 ```
 
-The sync imports new Zhihu items and updates existing items matched by `sourceUrl`. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
+The sync imports new Zhihu items and updates existing items matched by `sourceUrl` only when Zhihu's source update time changes. It stores Zhihu's creation time as `sourceCreatedAt` and Zhihu's modification time as `sourceUpdatedAt`. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
 
 The server deployment uses `deploy/zhaji-sync.service` and `deploy/zhaji-sync.timer` to run the same sync daily.
+
+If Zhihu blocks anonymous requests in local development, create a browser login session locally:
+
+```powershell
+npm.cmd run login:zhihu
+```
+
+Scan or complete login in the opened Chrome window. The script saves the session to `data\zhihu-storage.json`.
+
+On the server, use the server-side login helper so the server creates its own Zhihu session:
+
+```bash
+npm run login:zhihu:server
+```
 
 ## Email
 

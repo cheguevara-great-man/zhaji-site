@@ -31,13 +31,16 @@ async function importJson(path) {
     if (!title) continue;
 
     const html = item.html || item.contentHtml || markdownToHtml(item.markdown || item.content || "");
+    const sourceCreatedAt = item.sourceCreatedAt || item.publishedAt || item.createdAt || new Date().toISOString();
     articles.push({
       title,
       kind: item.kind || "article",
       excerpt: item.excerpt || item.summary || "",
       contentHtml: html,
       sourceUrl: item.sourceUrl || item.url || "",
-      publishedAt: item.publishedAt || item.createdAt || new Date().toISOString(),
+      sourceCreatedAt,
+      sourceUpdatedAt: item.sourceUpdatedAt || item.updatedAt || sourceCreatedAt,
+      publishedAt: sourceCreatedAt,
       status: item.status || "published",
       authorId: importedBy
     });
@@ -58,6 +61,8 @@ async function importMarkdownDirectory(path) {
       excerpt: textToHtml(body).replace(/<[^>]+>/g, "").slice(0, 180),
       contentHtml: markdownToHtml(body),
       sourceUrl: "",
+      sourceCreatedAt: new Date().toISOString(),
+      sourceUpdatedAt: new Date().toISOString(),
       publishedAt: new Date().toISOString(),
       status: "published",
       authorId: importedBy
