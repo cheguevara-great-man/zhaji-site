@@ -86,19 +86,19 @@ function getCurrentUser(req) {
 function home(res, user) {
   const articles = store.listArticles().slice(0, 6);
   sendHtml(res, 200, layout({
-    title: "知文集",
+    title: "不可牧",
     user,
     active: "/",
     body: `<section class="hero">
       <div>
-        <p class="eyebrow">Personal Archive</p>
-        <h1>把长文留下来，按自己的方式阅读和讨论。</h1>
-        <p>这里会收纳你的知乎文章，保留来源、发布时间、评论和后续编辑空间。</p>
+        <p class="eyebrow">不可牧</p>
+        <h1>在权力、情感与命运之间，保存自己的判断。</h1>
+        <p>这里收录我的文章、回答和想法：关于制度如何塑造人，也关于人在风险、爱与虚无面前怎样不被带走。</p>
       </div>
-      <a class="primary-action" href="/archive">浏览文章</a>
     </section>
+    <section class="section-head"><h2>最近更新</h2><a href="/archive">全部目录</a></section>
     <section class="article-grid">
-      ${articles.length ? articles.map(articleCard).join("") : `<div class="empty">还没有文章。注册第一个账号后进入 Admin 发布或导入。</div>`}
+      ${articles.length ? articles.map(articleCard).join("") : `<div class="empty">还没有文章。注册第一个账号后进入管理页发布或导入。</div>`}
     </section>`
   }));
 }
@@ -115,10 +115,10 @@ function archive(res, user, url) {
     ["pin", "想法", counts.pin]
   ];
   sendHtml(res, 200, layout({
-    title: "文章归档",
+    title: "目录",
     user,
     active: "/archive",
-    body: `<section class="page-heading"><h1>文章归档</h1><p>${articles.length} 篇内容</p></section>
+    body: `<section class="page-heading"><h1>目录</h1><p>${articles.length} 篇内容</p></section>
     <nav class="filter-tabs">
       ${filters.map(([kind, label, count]) => `<a class="${selectedKind === kind ? "active" : ""}" href="/archive${kind ? `?kind=${kind}` : ""}">${label}<span>${count}</span></a>`).join("")}
     </nav>
@@ -247,7 +247,7 @@ async function forgot(req, res) {
     const link = `http://${req.headers.host}/reset-password?token=${encodeURIComponent(token)}`;
     await emailer.send({
       to: user.email,
-      subject: "知文集密码重置",
+      subject: "不可牧密码重置",
       text: `请打开下面的链接重置密码，45 分钟内有效：\n\n${link}`
     });
   }

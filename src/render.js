@@ -87,7 +87,7 @@ function inlineMarkdown(value) {
 
 export function layout({ title, user, body, active = "" }) {
   const nav = [
-    ["归档", "/archive"]
+    ["目录", "/archive"]
   ];
 
   if (user?.isAdmin) {
@@ -105,7 +105,7 @@ export function layout({ title, user, body, active = "" }) {
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="/">知文集</a>
+    <a class="brand" href="/">不可牧</a>
     <nav>
       ${nav.map(([label, href]) => `<a class="${active === href ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>

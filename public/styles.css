@@ -107,11 +107,7 @@ main {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 760px) auto;
-  gap: 32px;
-  align-items: end;
-  padding: 52px 0 44px;
+  padding: 52px 0 36px;
 }
 
 .eyebrow {
@@ -145,6 +141,24 @@ p {
   max-width: 680px;
   color: var(--muted);
   font-size: 18px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 14px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.section-head a {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .article-grid {
