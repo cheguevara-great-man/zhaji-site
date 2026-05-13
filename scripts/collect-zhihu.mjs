@@ -58,7 +58,7 @@ try {
   console.log(`Expected: posts=${profile.posts ?? "?"}, answers=${profile.answers ?? "?"}, pins=${profile.pins ?? "?"}`);
 
   if (types.has("posts")) {
-    const posts = await collectApiArticles(context, maxPosts);
+    const posts = await collectArticles(context, page, maxPosts);
     for (const post of posts) {
       if (seenSources.has(post.sourceUrl)) continue;
       await addItem(await localizeImages(context, post));
@@ -66,7 +66,7 @@ try {
   }
 
   if (types.has("answers")) {
-    const answers = await collectApiAnswers(context, maxAnswers);
+    const answers = await collectAnswers(context, page, maxAnswers);
     for (const answer of answers) {
       if (seenSources.has(answer.sourceUrl)) continue;
       await addItem(await localizeImages(context, answer));
@@ -74,7 +74,7 @@ try {
   }
 
   if (types.has("pins")) {
-    const pins = await collectApiPins(context, maxPins);
+    const pins = await collectPinsWithFallback(context, page, maxPins);
     for (const pin of pins) {
       if (seenSources.has(pin.sourceUrl)) continue;
       const item = await localizeImages(context, pin);
@@ -89,6 +89,51 @@ try {
   console.log(`Done. Exported ${articles.length} item(s) to ${join(outputDir, "articles.json")}`);
 } finally {
   await context.close();
+}
+
+async function collectArticles(context, page, max) {
+  try {
+    return await collectApiArticles(context, max);
+  } catch (error) {
+    console.warn(`Article API failed, falling back to page scraping: ${error.message}`);
+    const links = await collectLinks(page, `${profileUrl.replace(/\/$/, "")}/posts`, {
+      label: "article links",
+      max,
+      match: (url) => /zhuanlan\.zhihu\.com\/p\/\d+|zhihu\.com\/p\/\d+/.test(url)
+    });
+    const items = [];
+    for (const link of links) {
+      items.push(await extractArticle(context, link));
+    }
+    return items;
+  }
+}
+
+async function collectAnswers(context, page, max) {
+  try {
+    return await collectApiAnswers(context, max);
+  } catch (error) {
+    console.warn(`Answer API failed, falling back to page scraping: ${error.message}`);
+    const links = await collectLinks(page, `${profileUrl.replace(/\/$/, "")}/answers`, {
+      label: "answer links",
+      max,
+      match: (url) => /zhihu\.com\/question\/\d+\/answer\/\d+/.test(url)
+    });
+    const items = [];
+    for (const link of links) {
+      items.push(await extractAnswer(context, link));
+    }
+    return items;
+  }
+}
+
+async function collectPinsWithFallback(context, page, max) {
+  try {
+    return await collectApiPins(context, max);
+  } catch (error) {
+    console.warn(`Pin API failed, falling back to page scraping: ${error.message}`);
+    return collectPins(page, `${profileUrl.replace(/\/$/, "")}/pins`, max);
+  }
 }
 
 async function collectApiArticles(context, max) {
