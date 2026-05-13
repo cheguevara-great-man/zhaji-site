@@ -51,7 +51,7 @@ async function handle(req, res) {
   if (req.method === "GET" && url.pathname === "/") return home(res, user);
   if (req.method === "GET" && url.pathname === "/api/articles") return articleFeed(res, url);
   if (req.method === "GET" && url.pathname === "/archive") return archive(res, user, url);
-  if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()));
+  if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()), url);
 
   if (req.method === "GET" && url.pathname === "/login") return authPage(res, user, "login");
   if (req.method === "GET" && url.pathname === "/register") return authPage(res, user, "register");
@@ -144,7 +144,7 @@ function archive(res, user, url) {
       ${filters.map(([kind, label, count]) => `<a class="${selectedKind === kind ? "active" : ""}" href="/archive${kind ? `?kind=${kind}` : ""}">${label}<span>${count}</span></a>`).join("")}
     </nav>
     <section class="archive-list">
-      ${articles.map((article) => `<a class="archive-row" href="/articles/${encodeURIComponent(article.slug)}">
+      ${articles.map((article) => `<a class="archive-row" href="${articleUrl(article, selectedKind)}">
         <span><small>${kindLabel(article.kind)}</small>${escapeHtml(displayTitle(article))}</span>
         <time>${formatDate(articleSourceCreatedAt(article))}</time>
       </a>`).join("") || `<div class="empty">暂无文章。</div>`}
@@ -152,11 +152,13 @@ function archive(res, user, url) {
   }));
 }
 
-function articlePage(res, user, slug) {
+function articlePage(res, user, slug, url) {
   const article = store.getArticleBySlug(slug, { includeDrafts: user?.isAdmin });
   if (!article) return sendHtml(res, 404, layout({ title: "Article not found", user, body: `<section class="narrow"><h1>文章不存在</h1></section>` }));
 
   const comments = store.listComments(article.id);
+  const scope = normalizeKindFilter(url.searchParams.get("kind") || url.searchParams.get("scope"));
+  const nav = articleReadingNav(article, scope);
   sendHtml(res, 200, layout({
     title: displayTitle(article),
     user,
@@ -166,6 +168,7 @@ function articlePage(res, user, slug) {
         <h1>${escapeHtml(displayTitle(article))}</h1>
       </header>
       <div class="prose">${article.contentHtml}</div>
+      ${nav}
       ${article.sourceUrl ? `<footer class="article-footer"><a class="source-link" href="${escapeHtml(article.sourceUrl)}" rel="noreferrer">原文链接</a></footer>` : ""}
     </article>
     <section class="comments">
@@ -449,11 +452,29 @@ async function importArticles(req, res, user) {
 
 function articleCard(article) {
   const excerpt = articleExcerpt(article);
-  return `<a class="article-card" href="/articles/${encodeURIComponent(article.slug)}">
+  return `<a class="article-card" href="${articleUrl(article)}">
     <time>${formatDate(articleSourceCreatedAt(article))}</time>
     <h2>${escapeHtml(displayTitle(article))}</h2>
     <p>${escapeHtml(excerpt)}</p>
   </a>`;
+}
+
+function articleReadingNav(article, scope) {
+  const articles = store.listArticles({ kind: scope });
+  const index = articles.findIndex((item) => item.id === article.id);
+  if (index < 0 || articles.length < 2) return "";
+
+  const previous = articles[index - 1];
+  const next = articles[index + 1];
+  return `<nav class="article-nav" aria-label="文章导航">
+    ${previous ? `<a href="${articleUrl(previous, scope)}"><span>上一篇</span><strong>${escapeHtml(displayTitle(previous))}</strong></a>` : `<span class="disabled"><span>上一篇</span><strong>没有了</strong></span>`}
+    ${next ? `<a href="${articleUrl(next, scope)}"><span>下一篇</span><strong>${escapeHtml(displayTitle(next))}</strong></a>` : `<span class="disabled"><span>下一篇</span><strong>没有了</strong></span>`}
+  </nav>`;
+}
+
+function articleUrl(article, scope = "") {
+  const suffix = scope ? `?kind=${encodeURIComponent(scope)}` : "";
+  return `/articles/${encodeURIComponent(article.slug)}${suffix}`;
 }
 
 function articleExcerpt(article) {
