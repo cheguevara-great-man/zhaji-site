@@ -4,11 +4,13 @@ import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clearSessionCookie, hashPassword, parseCookies, sessionCookie, verifyPassword } from "./auth.js";
 import { Emailer } from "./email.js";
+import { loadEnv } from "./env.js";
 import { escapeHtml, layout, markdownToHtml, textToHtml } from "./render.js";
 import { Store } from "./store.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const root = resolve(__dirname, "..");
+await loadEnv(join(root, ".env"));
 const publicDir = join(root, "public");
 const store = new Store(process.env.DB_PATH || join(root, "data", "db.json"));
 const emailer = new Emailer(process.env.OUTBOX_DIR || join(root, "data", "outbox"));
@@ -53,6 +55,8 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/login") return authPage(res, user, "login");
   if (req.method === "GET" && url.pathname === "/register") return authPage(res, user, "register");
+  if (req.method === "GET" && url.pathname === "/check-email") return checkEmailPage(res, user, url.searchParams.get("mode") || "verify");
+  if (req.method === "GET" && url.pathname === "/verify-email") return verifyEmail(req, res, url.searchParams.get("token"));
   if (req.method === "GET" && url.pathname === "/forgot-password") return forgotPage(res, user);
   if (req.method === "GET" && url.pathname === "/reset-password") return resetPage(res, user, url.searchParams.get("token"));
 
@@ -208,6 +212,18 @@ function forgotPage(res, user) {
   }));
 }
 
+function checkEmailPage(res, user, mode = "verify") {
+  const isReset = mode === "reset";
+  sendHtml(res, 200, layout({
+    title: "请检查邮箱",
+    user,
+    body: `<section class="narrow"><h1>请检查邮箱</h1>
+      <p>${isReset ? "如果邮箱存在，密码重置链接已经发送。" : "验证链接已经发送到你的邮箱，点击链接后账号就可以正常登录。"}</p>
+      ${emailer.smtp ? "" : `<p>当前没有配置 SMTP，邮件会写入本地 <code>data\\outbox</code>。</p>`}
+    </section>`
+  }));
+}
+
 function resetPage(res, user, token) {
   sendHtml(res, 200, layout({
     title: "重置密码",
@@ -232,8 +248,22 @@ async function register(req, res) {
     email: form.get("email"),
     passwordHash: await hashPassword(password)
   });
-  const token = await store.createSession(user.id);
-  res.setHeader("Set-Cookie", sessionCookie(token));
+  await sendVerificationEmail(req, user);
+  redirect(res, "/check-email");
+}
+
+async function verifyEmail(req, res, token) {
+  const user = await store.consumeEmailVerification(token);
+  if (!user) {
+    return sendHtml(res, 400, layout({
+      title: "验证失败",
+      user: getCurrentUser(req),
+      body: `<section class="narrow"><h1>验证失败</h1><p>这个验证链接无效或已经过期。</p><p><a href="/register">重新注册</a></p></section>`
+    }));
+  }
+
+  const session = await store.createSession(user.id);
+  res.setHeader("Set-Cookie", sessionCookie(session));
   redirect(res, user.isAdmin ? "/admin" : "/");
 }
 
@@ -242,6 +272,10 @@ async function login(req, res) {
   const user = store.getUserByEmail(form.get("email"));
   if (!user || !(await verifyPassword(form.get("password"), user.passwordHash))) {
     return sendHtml(res, 401, layout({ title: "登录失败", user: null, body: `<section class="narrow"><h1>登录失败</h1><p>邮箱或密码不正确。</p><p><a href="/login">返回登录</a></p></section>` }));
+  }
+  if (!user.emailVerifiedAt) {
+    await sendVerificationEmail(req, user);
+    return redirect(res, "/check-email");
   }
 
   const token = await store.createSession(user.id);
@@ -261,7 +295,7 @@ async function forgot(req, res) {
   const user = store.getUserByEmail(form.get("email"));
   if (user) {
     const token = await store.createPasswordReset(user.id);
-    const link = `http://${req.headers.host}/reset-password?token=${encodeURIComponent(token)}`;
+    const link = `${baseUrl(req)}/reset-password?token=${encodeURIComponent(token)}`;
     await emailer.send({
       to: user.email,
       subject: "札记密码重置",
@@ -272,7 +306,7 @@ async function forgot(req, res) {
   sendHtml(res, 200, layout({
     title: "邮件已处理",
     user: getCurrentUser(req),
-    body: `<section class="narrow"><h1>请检查邮箱</h1><p>如果邮箱存在，重置链接已经发送。本地开发模式下请查看 <code>data\\outbox</code>。</p></section>`
+    body: `<section class="narrow"><h1>请检查邮箱</h1><p>如果邮箱存在，重置链接已经发送。</p>${emailer.smtp ? "" : `<p>当前没有配置 SMTP，邮件会写入本地 <code>data\\outbox</code>。</p>`}</section>`
   }));
 }
 
@@ -285,8 +319,19 @@ async function resetPassword(req, res) {
   redirect(res, "/login");
 }
 
+async function sendVerificationEmail(req, user) {
+  const token = await store.createEmailVerification(user.id);
+  const link = `${baseUrl(req)}/verify-email?token=${encodeURIComponent(token)}`;
+  return emailer.send({
+    to: user.email,
+    subject: "札记邮箱验证",
+    text: `请打开下面的链接完成邮箱验证，24 小时内有效：\n\n${link}`
+  });
+}
+
 async function createComment(req, res, user, slug) {
   if (!user) return redirect(res, "/login");
+  if (!user.emailVerifiedAt) return redirect(res, "/check-email");
   const article = store.getArticleBySlug(slug);
   if (!article) throw new Error("Article not found.");
   const form = await readForm(req);
@@ -481,6 +526,12 @@ function fromDateInput(value) {
 
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]*>/g, "");
+}
+
+function baseUrl(req) {
+  if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/+$/, "");
+  const proto = req.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${req.headers.host}`;
 }
 
 function clampInteger(value, min, max) {

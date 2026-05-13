@@ -8,7 +8,8 @@ const emptyDb = {
   articles: [],
   comments: [],
   sessions: [],
-  passwordResets: []
+  passwordResets: [],
+  emailVerifications: []
 };
 
 export class Store {
@@ -28,6 +29,15 @@ export class Store {
     for (const key of Object.keys(emptyDb)) {
       if (!Array.isArray(this.db[key])) this.db[key] = [];
     }
+
+    let migrated = false;
+    for (const user of this.db.users) {
+      if (user.emailVerifiedAt === undefined) {
+        user.emailVerifiedAt = user.createdAt || new Date().toISOString();
+        migrated = true;
+      }
+    }
+    if (migrated) await this.save();
   }
 
   async save() {
@@ -50,6 +60,7 @@ export class Store {
       email: normalizedEmail,
       passwordHash,
       isAdmin: this.db.users.length === 0,
+      emailVerifiedAt: null,
       createdAt: now
     };
 
@@ -72,6 +83,34 @@ export class Store {
     if (!user) throw new Error("User not found.");
     user.passwordHash = passwordHash;
     await this.save();
+  }
+
+  async createEmailVerification(userId) {
+    const token = randomToken();
+    const verification = {
+      token,
+      userId,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+      usedAt: null
+    };
+    this.db.emailVerifications = this.db.emailVerifications.filter((item) => item.userId !== userId || item.usedAt);
+    this.db.emailVerifications.push(verification);
+    await this.save();
+    return token;
+  }
+
+  async consumeEmailVerification(token) {
+    const verification = this.db.emailVerifications.find((item) => item.token === token && !item.usedAt);
+    if (!verification || Date.parse(verification.expiresAt) < Date.now()) return null;
+
+    const user = this.db.users.find((item) => item.id === verification.userId);
+    if (!user) return null;
+
+    verification.usedAt = new Date().toISOString();
+    user.emailVerifiedAt = verification.usedAt;
+    await this.save();
+    return withoutPassword(user);
   }
 
   async createSession(userId) {

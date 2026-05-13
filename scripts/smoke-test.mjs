@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -31,9 +31,15 @@ try {
     email: "admin@example.com",
     password: "password123"
   });
-  const cookie = register.headers.get("set-cookie").split(";")[0];
-  if (!register.headers.get("location")?.includes("/admin")) {
-    throw new Error("First registration did not redirect to admin.");
+  if (!register.headers.get("location")?.includes("/check-email")) {
+    throw new Error("Registration did not redirect to email verification notice.");
+  }
+
+  const verifyLink = await readLatestEmailLink(join(tmp, "outbox"), "/verify-email");
+  const verified = await fetch(verifyLink, { redirect: "manual" });
+  const cookie = verified.headers.get("set-cookie").split(";")[0];
+  if (!verified.headers.get("location")?.includes("/admin")) {
+    throw new Error("First verified account did not redirect to admin.");
   }
 
   await expectStatus("/admin", 200, cookie);
@@ -104,4 +110,15 @@ async function post(path, fields, cookie = "") {
     body: new URLSearchParams(fields),
     redirect: "manual"
   });
+}
+
+async function readLatestEmailLink(outboxDir, path) {
+  const files = await readdir(outboxDir);
+  const latest = files.sort().at(-1);
+  if (!latest) throw new Error("No email was written to the outbox.");
+
+  const text = await readFile(join(outboxDir, latest), "utf8");
+  const match = new RegExp(`https?://[^\\s]+${path}[^\\s]+`).exec(text);
+  if (!match) throw new Error(`No ${path} link was found in the outbox email.`);
+  return match[0];
 }

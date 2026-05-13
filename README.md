@@ -5,9 +5,9 @@ A local personal article website for importing and publishing your own Zhihu art
 ## Features
 
 - Clean article homepage, archive, article pages, and admin dashboard
-- Email-based registration and login
+- Email-based registration, email verification, and login
 - Password hashing with Node `crypto.scrypt`
-- Password reset by email outbox fallback
+- Password reset by SMTP or local email outbox fallback
 - Logged-in comments
 - First registered account becomes the admin
 - Admin article creation, editing, publishing, and deletion
@@ -108,7 +108,27 @@ By default, email is written to:
 data\outbox\
 ```
 
-That is intentional for local development. Password reset links are stored there until SMTP is configured.
+That is intentional for local development. Registration verification links and password reset links are stored there until SMTP is configured.
+
+For a real server, copy `.env.example` to `.env` and fill in SMTP settings:
+
+```ini
+PUBLIC_BASE_URL=https://your-domain.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-smtp-user@example.com
+SMTP_PASS=your-smtp-password-or-app-password
+SMTP_FROM="札记 <your-smtp-user@example.com>"
+```
+
+Common settings:
+
+- QQ/腾讯企业邮箱 usually uses `SMTP_PORT=465` and `SMTP_SECURE=true`.
+- 163/阿里邮箱 usually also supports `465` with SSL.
+- For port `587`, use `SMTP_SECURE=false`; the app will upgrade with STARTTLS when the server supports it.
+
+Do not commit `.env`. It is ignored by git.
 
 ## Next Step For Zhihu
 
