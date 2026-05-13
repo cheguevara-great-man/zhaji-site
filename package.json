@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
     "import:zhihu": "node scripts/import-zhihu-export.mjs",
     "collect:zhihu": "node scripts/collect-zhihu.mjs",
     "repair:zhihu": "node scripts/repair-zhihu-db.mjs",

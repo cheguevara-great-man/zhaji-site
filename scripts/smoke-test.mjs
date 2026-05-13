@@ -11,8 +11,15 @@ const child = spawn(process.execPath, ["src/server.js"], {
   env: {
     ...process.env,
     PORT: String(port),
+    PUBLIC_BASE_URL: base,
     DB_PATH: join(tmp, "db.json"),
-    OUTBOX_DIR: join(tmp, "outbox")
+    OUTBOX_DIR: join(tmp, "outbox"),
+    SMTP_HOST: "",
+    SMTP_PORT: "",
+    SMTP_SECURE: "",
+    SMTP_USER: "",
+    SMTP_PASS: "",
+    SMTP_FROM: ""
   },
   stdio: ["ignore", "pipe", "pipe"]
 });
@@ -37,7 +44,11 @@ try {
 
   const verifyLink = await readLatestEmailLink(join(tmp, "outbox"), "/verify-email");
   const verified = await fetch(verifyLink, { redirect: "manual" });
-  const cookie = verified.headers.get("set-cookie").split(";")[0];
+  const setCookie = verified.headers.get("set-cookie");
+  if (!setCookie) {
+    throw new Error(`Email verification did not set a session cookie. status=${verified.status} location=${verified.headers.get("location")}`);
+  }
+  const cookie = setCookie.split(";")[0];
   if (!verified.headers.get("location")?.includes("/admin")) {
     throw new Error("First verified account did not redirect to admin.");
   }
@@ -114,11 +125,11 @@ async function post(path, fields, cookie = "") {
 
 async function readLatestEmailLink(outboxDir, path) {
   const files = await readdir(outboxDir);
-  const latest = files.sort().at(-1);
-  if (!latest) throw new Error("No email was written to the outbox.");
+  for (const file of files.sort().reverse()) {
+    const text = await readFile(join(outboxDir, file), "utf8");
+    const match = new RegExp(`https?://[^\\s]+${path}[^\\s]+`).exec(text);
+    if (match) return match[0];
+  }
 
-  const text = await readFile(join(outboxDir, latest), "utf8");
-  const match = new RegExp(`https?://[^\\s]+${path}[^\\s]+`).exec(text);
-  if (!match) throw new Error(`No ${path} link was found in the outbox email.`);
-  return match[0];
+  throw new Error(`No ${path} link was found in the outbox email.`);
 }
