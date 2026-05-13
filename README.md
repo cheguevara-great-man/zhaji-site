@@ -111,6 +111,8 @@ npm.cmd run sync:zhihu
 
 The sync imports new Zhihu items and updates existing items matched by `sourceUrl` only when Zhihu's source update time changes. It stores Zhihu's creation time as `sourceCreatedAt` and Zhihu's modification time as `sourceUpdatedAt`. The collector first reads list metadata and only fetches full content/images for new or changed items. It does not delete local content when a Zhihu item is missing; deletion should stay manual.
 
+Use `-- --forceContent` with `sync:zhihu` or `collect:zhihu` only when importer formatting changes and existing unchanged Zhihu items need to be rewritten.
+
 The server deployment uses `deploy/zhaji-sync.service` and `deploy/zhaji-sync.timer` to run the same sync daily.
 
 If Zhihu blocks anonymous requests in local development, create a browser login session locally:

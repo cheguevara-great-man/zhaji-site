@@ -24,6 +24,7 @@ const shouldImport = Boolean(args.import);
 const shouldReplace = Boolean(args.replace);
 const shouldSync = Boolean(args.sync);
 const shouldFresh = Boolean(args.fresh || shouldSync);
+const forceContentFetch = Boolean(args.forceContent || args.refreshContent);
 const headless = Boolean(args.headless);
 const loginOnly = Boolean(args.login);
 const waitForLogin = !args.noLoginWait;
@@ -182,7 +183,7 @@ async function collectApiPins(context, max) {
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/pins?include=${encodeURIComponent(include)}`, max, "pins");
   const items = data.map((item) => {
     const html = pinContentHtml(item.content);
-    const text = stripTags(html).replace(/\s+/g, " ").trim();
+    const text = plainTextFromHtml(html);
     return normalizeItem({
       kind: "pin",
       title: `想法：${text.slice(0, 42) || item.id}`,
@@ -252,7 +253,7 @@ async function fetchAnswerDetail(context, item) {
 }
 
 function filterChangedMetadata(items, label) {
-  if (!shouldSync || shouldReplace) return items;
+  if (!shouldSync || shouldReplace || forceContentFetch) return items;
 
   let skipped = 0;
   const candidates = items.filter((item) => {
@@ -610,7 +611,7 @@ async function importIntoSite(items, { replace = false, updateExisting = false }
 function hasArticleChanged(current, next) {
   const currentSourceUpdatedAt = comparableDate(current.sourceUpdatedAt || current.publishedAt);
   const nextSourceUpdatedAt = comparableDate(next.sourceUpdatedAt || next.sourceCreatedAt || next.publishedAt);
-  if (currentSourceUpdatedAt && nextSourceUpdatedAt) {
+  if (!forceContentFetch && currentSourceUpdatedAt && nextSourceUpdatedAt) {
     return currentSourceUpdatedAt !== nextSourceUpdatedAt;
   }
 
@@ -764,15 +765,46 @@ function stripTags(value) {
   return String(value || "").replace(/<[^>]*>/g, "");
 }
 
+function plainTextFromHtml(value) {
+  return decodeZhihuText(String(value || ""))
+    .replace(/<a\b[^>]*>(.*?)<\/a>/gis, "$1")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function pinContentHtml(content) {
-  if (!Array.isArray(content)) return markdownToHtml(String(content || ""));
+  if (!Array.isArray(content)) return markdownToHtml(sanitizeZhihuRichText(content));
   return content.map((part) => {
     if (part.type === "image" || part.image_url || part.url?.match(/\.(png|jpe?g|gif|webp|avif)(\?|$)/i)) {
       const src = part.image_url || part.url || part.content;
       return src ? `<p><img src="${src}" alt=""></p>` : "";
     }
-    return markdownToHtml(decodeZhihuText(part.content || part.own_text || ""));
+    return markdownToHtml(sanitizeZhihuRichText(part.content || part.own_text || ""));
   }).join("\n");
+}
+
+function sanitizeZhihuRichText(value) {
+  return decodeZhihuText(value)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gis, (_match, href, label) => {
+      const url = unwrapZhihuLink(decodeZhihuText(href));
+      const text = plainTextFromHtml(label) || url;
+      return url ? `[${text}](${url})` : text;
+    })
+    .replace(/<[^>]+>/g, "");
+}
+
+function unwrapZhihuLink(href) {
+  if (!href) return "";
+  try {
+    const url = new URL(href, "https://www.zhihu.com");
+    const target = url.hostname === "link.zhihu.com" ? url.searchParams.get("target") : "";
+    return target ? decodeURIComponent(target) : url.href;
+  } catch {
+    return href;
+  }
 }
 
 function decodeZhihuText(value) {
