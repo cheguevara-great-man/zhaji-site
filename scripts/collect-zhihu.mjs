@@ -29,7 +29,7 @@ const headless = Boolean(args.headless);
 const loginOnly = Boolean(args.login);
 const waitForLogin = !args.noLoginWait;
 const browserChannel = args.channel || (process.platform === "win32" ? "msedge" : "");
-const metadataPageSize = Number(args.metadataPageSize || args.pageSize || 5);
+const metadataPageSize = Number(args.metadataPageSize || args.pageSize || 20);
 const contentPageSize = Number(args.contentPageSize || 2);
 
 await mkdir(outputDir, { recursive: true });
