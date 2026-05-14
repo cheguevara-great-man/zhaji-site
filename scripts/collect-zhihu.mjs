@@ -29,7 +29,8 @@ const headless = Boolean(args.headless);
 const loginOnly = Boolean(args.login);
 const waitForLogin = !args.noLoginWait;
 const browserChannel = args.channel || (process.platform === "win32" ? "msedge" : "");
-const pageSize = Number(args.pageSize || 5);
+const metadataPageSize = Number(args.metadataPageSize || args.pageSize || 5);
+const contentPageSize = Number(args.contentPageSize || 2);
 
 await mkdir(outputDir, { recursive: true });
 await mkdir(uploadDir, { recursive: true });
@@ -231,7 +232,7 @@ async function fetchArticleDetails(context, candidates) {
   const needed = new Set(candidates.map((item) => String(item.id)).filter(Boolean));
   const details = new Map();
   const include = "data[*].content,excerpt,title,created,updated,url,id";
-  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/articles?include=${encodeURIComponent(include)}&sort_by=created`, pageSize);
+  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/articles?include=${encodeURIComponent(include)}&sort_by=created`, contentPageSize);
 
   while (url && needed.size) {
     const response = await requestWithRetry(context, url);
@@ -281,7 +282,7 @@ async function fetchAnswerDetails(context, candidates) {
   const needed = new Set(candidates.map((item) => String(item.id)).filter(Boolean));
   const details = new Map();
   const include = "data[*].content,question,title,created_time,updated_time,url,id";
-  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/answers?include=${encodeURIComponent(include)}&sort_by=created`, pageSize);
+  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/answers?include=${encodeURIComponent(include)}&sort_by=created`, contentPageSize);
 
   while (url && needed.size) {
     const response = await requestWithRetry(context, url);
@@ -344,7 +345,7 @@ function filterChangedMetadata(items, label) {
 
 async function collectApiPages(context, firstUrl, max, label) {
   const items = [];
-  let url = appendLimit(firstUrl, Math.min(max || pageSize, pageSize));
+  let url = appendLimit(firstUrl, Math.min(max || metadataPageSize, metadataPageSize));
 
   while (url) {
     const response = await requestWithRetry(context, url);
