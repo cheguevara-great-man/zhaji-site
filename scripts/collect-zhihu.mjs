@@ -370,19 +370,52 @@ async function collectApiPages(context, firstUrl, max, label) {
 
 async function requestWithRetry(context, url) {
   let lastResponse;
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
-    lastResponse = await context.request.get(url, {
-      headers: {
-        referer: profileUrl,
-        accept: "application/json, text/plain, */*"
+  let lastError;
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      lastResponse = await context.request.get(url, {
+        headers: {
+          referer: profileUrl,
+          accept: "application/json, text/plain, */*"
+        }
+      });
+      if (lastResponse.ok() || !shouldRetryResponse(lastResponse.status(), attempt, maxAttempts)) {
+        return lastResponse;
       }
-    });
-    if (lastResponse.ok() || ![429, 500, 502, 503, 504].includes(lastResponse.status())) {
-      return lastResponse;
+      const delay = retryDelayMs(lastResponse.status(), attempt);
+      console.warn(`Zhihu request returned HTTP ${lastResponse.status()}, retrying after ${delay}ms: ${trimUrl(url)}`);
+      await sleep(delay);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts) throw error;
+      const delay = retryDelayMs(0, attempt);
+      console.warn(`Zhihu request failed, retrying after ${delay}ms: ${error.message}`);
+      await sleep(delay);
     }
-    await new Promise((resolve) => setTimeout(resolve, 900 * attempt));
   }
-  return lastResponse;
+  if (lastResponse) return lastResponse;
+  throw lastError;
+}
+
+function shouldRetryResponse(status, attempt, maxAttempts) {
+  if (status === 403) return attempt < 2;
+  return [408, 409, 425, 429, 500, 502, 503, 504].includes(status) && attempt < maxAttempts;
+}
+
+function retryDelayMs(status, attempt) {
+  const base = status === 403 ? 2500 : 900;
+  return base * attempt;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function trimUrl(url) {
+  const parsed = new URL(url);
+  parsed.search = parsed.search.slice(0, 140);
+  return parsed.toString();
 }
 
 async function addItem(item) {
