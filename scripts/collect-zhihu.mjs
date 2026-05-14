@@ -154,28 +154,14 @@ async function collectApiArticles(context, max) {
   const include = "data[*].excerpt,title,created,updated,url,id";
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/articles?include=${encodeURIComponent(include)}&sort_by=created`, max, "articles");
   const candidates = filterChangedMetadata(data.map(articleFromApiItem), "articles");
-  const items = [];
-
-  for (const item of candidates) {
-    items.push(await fetchArticleDetail(context, item));
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-
-  return items;
+  return fetchArticleDetails(context, candidates);
 }
 
 async function collectApiAnswers(context, max) {
   const include = "data[*].question,title,created_time,updated_time,url,id";
   const data = await collectApiPages(context, `https://www.zhihu.com/api/v4/members/${urlToken}/answers?include=${encodeURIComponent(include)}&sort_by=created`, max, "answers");
   const candidates = filterChangedMetadata(data.map(answerFromApiItem), "answers");
-  const items = [];
-
-  for (const item of candidates) {
-    items.push(await fetchAnswerDetail(context, item));
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-
-  return items;
+  return fetchAnswerDetails(context, candidates);
 }
 
 async function collectApiPins(context, max) {
@@ -240,6 +226,44 @@ async function fetchArticleDetail(context, item) {
   return extractArticle(context, item.sourceUrl);
 }
 
+async function fetchArticleDetails(context, candidates) {
+  if (!candidates.length) return [];
+  const needed = new Set(candidates.map((item) => String(item.id)).filter(Boolean));
+  const details = new Map();
+  const include = "data[*].content,excerpt,title,created,updated,url,id";
+  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/articles?include=${encodeURIComponent(include)}&sort_by=created`, pageSize);
+
+  while (url && needed.size) {
+    const response = await requestWithRetry(context, url);
+    if (!response.ok()) break;
+    const payload = await response.json();
+    for (const item of payload.data || []) {
+      const id = String(item.id || "");
+      if (!needed.has(id)) continue;
+      const detail = articleFromApiItem(item);
+      if (detail.contentHtml && detail.title !== "未命名") {
+        details.set(id, detail);
+        needed.delete(id);
+      }
+    }
+    if (payload.paging?.is_end) break;
+    url = payload.paging?.next ? ensureHttps(payload.paging.next) : "";
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
+
+  const items = [];
+  for (const item of candidates) {
+    const detail = details.get(String(item.id));
+    if (detail) {
+      items.push(detail);
+      continue;
+    }
+    items.push(await fetchArticleDetail(context, item));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return items.filter(isUsableItem);
+}
+
 async function fetchAnswerDetail(context, item) {
   const include = "content,question,title,created_time,updated_time,url,id";
   const url = `https://www.zhihu.com/api/v4/answers/${encodeURIComponent(item.id)}?include=${encodeURIComponent(include)}`;
@@ -250,6 +274,48 @@ async function fetchAnswerDetail(context, item) {
   }
   console.warn(`Answer detail API failed, falling back to page scraping: ${item.sourceUrl}`);
   return extractAnswer(context, item.sourceUrl);
+}
+
+async function fetchAnswerDetails(context, candidates) {
+  if (!candidates.length) return [];
+  const needed = new Set(candidates.map((item) => String(item.id)).filter(Boolean));
+  const details = new Map();
+  const include = "data[*].content,question,title,created_time,updated_time,url,id";
+  let url = appendLimit(`https://www.zhihu.com/api/v4/members/${urlToken}/answers?include=${encodeURIComponent(include)}&sort_by=created`, pageSize);
+
+  while (url && needed.size) {
+    const response = await requestWithRetry(context, url);
+    if (!response.ok()) break;
+    const payload = await response.json();
+    for (const item of payload.data || []) {
+      const id = String(item.id || "");
+      if (!needed.has(id)) continue;
+      const detail = answerFromApiItem(item);
+      if (detail.contentHtml && detail.title !== "未命名") {
+        details.set(id, detail);
+        needed.delete(id);
+      }
+    }
+    if (payload.paging?.is_end) break;
+    url = payload.paging?.next ? ensureHttps(payload.paging.next) : "";
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  }
+
+  const items = [];
+  for (const item of candidates) {
+    const detail = details.get(String(item.id));
+    if (detail) {
+      items.push(detail);
+      continue;
+    }
+    items.push(await fetchAnswerDetail(context, item));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return items.filter(isUsableItem);
+}
+
+function isUsableItem(item) {
+  return Boolean(item?.title && item.title !== "未命名" && item.contentHtml);
 }
 
 function filterChangedMetadata(items, label) {
