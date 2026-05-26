@@ -345,6 +345,9 @@ function filterChangedMetadata(items, label) {
 
 async function collectApiPages(context, firstUrl, max, label) {
   const items = [];
+  const seen = new Set();
+  let rawCount = 0;
+  let reportedTotal = "";
   let url = appendLimit(firstUrl, Math.min(max || metadataPageSize, metadataPageSize));
 
   while (url) {
@@ -354,18 +357,36 @@ async function collectApiPages(context, firstUrl, max, label) {
     }
 
     const payload = await response.json();
+    if (payload.paging?.totals) reportedTotal = payload.paging.totals;
     for (const item of payload.data || []) {
+      rawCount += 1;
+      const key = apiItemKey(item);
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
       items.push(item);
       if (max && items.length >= max) break;
     }
 
-    console.log(`Fetched ${items.length}${payload.paging?.totals ? `/${payload.paging.totals}` : ""} ${label}`);
+    console.log(formatFetchProgress({ label, uniqueCount: items.length, rawCount, reportedTotal }));
     if ((max && items.length >= max) || payload.paging?.is_end) break;
     url = payload.paging?.next ? ensureHttps(payload.paging.next) : "";
     await new Promise((resolve) => setTimeout(resolve, 450));
   }
 
   return items;
+}
+
+function apiItemKey(item) {
+  if (item?.id !== undefined && item?.id !== null) return `id:${item.id}`;
+  if (item?.url) return `url:${item.url}`;
+  return "";
+}
+
+function formatFetchProgress({ label, uniqueCount, rawCount, reportedTotal }) {
+  const duplicateCount = rawCount - uniqueCount;
+  const totalText = reportedTotal ? `; API reports ${reportedTotal}` : "";
+  const duplicateText = duplicateCount ? `; ${duplicateCount} duplicate row(s)` : "";
+  return `Fetched ${uniqueCount} unique ${label} from ${rawCount} API row(s)${totalText}${duplicateText}`;
 }
 
 async function requestWithRetry(context, url) {
