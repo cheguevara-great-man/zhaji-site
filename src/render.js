@@ -87,7 +87,8 @@ function inlineMarkdown(value) {
 
 export function layout({ title, user, body, active = "" }) {
   const nav = [
-    ["目录", "/archive"]
+    ["目录", "/archive"],
+    ["搜索", "/search"]
   ];
 
   if (user?.isAdmin) {

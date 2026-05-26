@@ -51,6 +51,7 @@ async function handle(req, res) {
   if (req.method === "GET" && url.pathname === "/") return home(res, user);
   if (req.method === "GET" && url.pathname === "/api/articles") return articleFeed(res, url);
   if (req.method === "GET" && url.pathname === "/archive") return archive(res, user, url);
+  if (req.method === "GET" && url.pathname === "/search") return searchPage(res, user, url);
   if (req.method === "GET" && url.pathname.startsWith("/articles/")) return articlePage(res, user, decodeURIComponent(url.pathname.split("/").pop()), url);
 
   if (req.method === "GET" && url.pathname === "/login") return authPage(res, user, "login");
@@ -148,6 +149,45 @@ function archive(res, user, url) {
         <span><small>${kindLabel(article.kind)}</small>${escapeHtml(displayTitle(article))}</span>
         <time>${formatDate(articleSourceCreatedAt(article))}</time>
       </a>`).join("") || `<div class="empty">暂无文章。</div>`}
+    </section>`
+  }));
+}
+
+function searchPage(res, user, url) {
+  const query = normalizeSearchQuery(url.searchParams.get("q"));
+  const selectedKind = normalizeKindFilter(url.searchParams.get("kind"));
+  const allArticles = store.listArticles();
+  const scopedArticles = store.listArticles({ kind: selectedKind });
+  const results = query ? searchArticles(scopedArticles, query).slice(0, 80) : [];
+  const counts = countKinds(allArticles);
+  const filters = [
+    ["", "全部", allArticles.length],
+    ["article", "文章", counts.article],
+    ["answer", "回答", counts.answer],
+    ["pin", "想法", counts.pin]
+  ];
+  const filterPrefix = `/search?q=${encodeURIComponent(query)}`;
+
+  sendHtml(res, 200, layout({
+    title: query ? `搜索：${query}` : "搜索",
+    user,
+    active: "/search",
+    body: `<section class="page-heading"><div><h1>搜索</h1><p>搜索标题、摘要和正文。</p></div></section>
+    <form class="search-form" method="get" action="/search">
+      <input name="q" value="${escapeHtml(query)}" placeholder="输入关键词" autofocus>
+      ${selectedKind ? `<input type="hidden" name="kind" value="${escapeHtml(selectedKind)}">` : ""}
+      <button>搜索</button>
+    </form>
+    <nav class="filter-tabs">
+      ${filters.map(([kind, label, count]) => `<a class="${selectedKind === kind ? "active" : ""}" href="${filterPrefix}${kind ? `&kind=${kind}` : ""}">${label}<span>${count}</span></a>`).join("")}
+    </nav>
+    <section class="search-results">
+      ${query ? `<p class="search-summary">${results.length ? `找到 ${results.length} 篇相关内容` : "没有找到相关内容"}</p>` : `<p class="search-summary">输入关键词后开始搜索。</p>`}
+      ${results.map(({ article, snippet }) => `<a class="search-result" href="${articleUrl(article, selectedKind)}">
+        <div><small>${kindLabel(article.kind)}</small><time>${formatDate(articleSourceCreatedAt(article))}</time></div>
+        <h2>${escapeHtml(displayTitle(article))}</h2>
+        <p>${highlightSnippet(snippet, query)}</p>
+      </a>`).join("")}
     </section>`
   }));
 }
@@ -480,6 +520,84 @@ function articleUrl(article, scope = "") {
 function articleExcerpt(article) {
   const source = article.excerpt || article.contentHtml;
   return stripHtml(source).replace(/\s+/g, " ").trim().slice(0, 140);
+}
+
+function searchArticles(articles, query) {
+  const terms = searchTerms(query);
+  if (!terms.length) return [];
+
+  return articles
+    .map((article) => {
+      const title = displayTitle(article);
+      const excerpt = article.excerpt || "";
+      const content = stripHtml(article.contentHtml).replace(/\s+/g, " ").trim();
+      const haystack = normalizeSearchText([title, excerpt, content, article.sourceUrl].join(" "));
+      if (!terms.every((term) => haystack.includes(term))) return null;
+
+      const score = scoreSearchMatch(terms, title, 12) + scoreSearchMatch(terms, excerpt, 5) + scoreSearchMatch(terms, content, 1);
+      return {
+        article,
+        score,
+        snippet: searchSnippet(content || excerpt || title, terms)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || Date.parse(articleSourceCreatedAt(b.article)) - Date.parse(articleSourceCreatedAt(a.article)));
+}
+
+function normalizeSearchQuery(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
+function searchTerms(query) {
+  return normalizeSearchQuery(query)
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeSearchText(value) {
+  return String(value || "").toLowerCase();
+}
+
+function scoreSearchMatch(terms, value, weight) {
+  const text = normalizeSearchText(value);
+  return terms.reduce((score, term) => score + countOccurrences(text, term) * weight, 0);
+}
+
+function countOccurrences(text, term) {
+  if (!term) return 0;
+  let count = 0;
+  let index = text.indexOf(term);
+  while (index !== -1) {
+    count += 1;
+    index = text.indexOf(term, index + term.length);
+  }
+  return count;
+}
+
+function searchSnippet(text, terms) {
+  const normalized = normalizeSearchText(text);
+  const firstIndex = terms
+    .map((term) => normalized.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0] ?? 0;
+  const start = Math.max(0, firstIndex - 45);
+  const snippet = String(text || "").slice(start, start + 150).trim();
+  return `${start > 0 ? "..." : ""}${snippet}`;
+}
+
+function highlightSnippet(snippet, query) {
+  let html = escapeHtml(snippet);
+  for (const term of searchTerms(query)) {
+    html = html.replace(new RegExp(escapeRegExp(escapeHtml(term)), "gi"), (match) => `<mark>${match}</mark>`);
+  }
+  return html;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function displayTitle(article) {

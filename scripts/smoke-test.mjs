@@ -75,6 +75,12 @@ try {
     throw new Error("Created article was not rendered.");
   }
 
+  const search = await fetch(`${base}/search?q=smoke`, { headers: { cookie } });
+  const searchHtml = await search.text();
+  if (!search.ok || !searchHtml.includes("Smoke Test Article")) {
+    throw new Error("Search did not return the created article.");
+  }
+
   await post("/comments/smoke-test-article", { body: "Looks good." }, cookie);
   const commented = await fetch(`${base}/articles/smoke-test-article`, { headers: { cookie } });
   const commentedHtml = await commented.text();
