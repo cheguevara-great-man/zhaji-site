@@ -217,6 +217,12 @@ dl {
   letter-spacing: 0;
 }
 
+.hero h1 {
+  max-width: none;
+  font-size: clamp(38px, 5vw, 60px);
+  white-space: nowrap;
+}
+
 .hero p {
   max-width: 700px;
   color: var(--muted);
@@ -831,6 +837,10 @@ code {
   .editor h1,
   .auth-panel h1 {
     font-size: clamp(32px, 10.8vw, 48px);
+  }
+
+  .hero h1 {
+    white-space: normal;
   }
 
   .article-grid {
