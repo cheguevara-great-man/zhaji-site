@@ -319,6 +319,11 @@ time,
   color: var(--muted);
 }
 
+.search-result .search-result-source {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 mark {
   border-radius: 4px;
   background: #dceee8;

@@ -158,7 +158,7 @@ function searchPage(res, user, url) {
   const selectedKind = normalizeKindFilter(url.searchParams.get("kind"));
   const allArticles = store.listArticles();
   const scopedArticles = store.listArticles({ kind: selectedKind });
-  const results = query ? searchArticles(scopedArticles, query).slice(0, 80) : [];
+  const results = query ? searchArticles(scopedArticles, query).slice(0, 100) : [];
   const counts = countKinds(allArticles);
   const filters = [
     ["", "全部", allArticles.length],
@@ -182,10 +182,11 @@ function searchPage(res, user, url) {
       ${filters.map(([kind, label, count]) => `<a class="${selectedKind === kind ? "active" : ""}" href="${filterPrefix}${kind ? `&kind=${kind}` : ""}">${label}<span>${count}</span></a>`).join("")}
     </nav>
     <section class="search-results">
-      ${query ? `<p class="search-summary">${results.length ? `找到 ${results.length} 篇相关内容` : "没有找到相关内容"}</p>` : `<p class="search-summary">输入关键词后开始搜索。</p>`}
-      ${results.map(({ article, snippet }) => `<a class="search-result" href="${articleUrl(article, selectedKind)}">
+      ${query ? `<p class="search-summary">${results.length ? `找到 ${results.length} 条相关内容` : "没有找到相关内容"}</p>` : `<p class="search-summary">输入关键词后开始搜索。</p>`}
+      ${results.map(({ article, snippet, matchType, comment }) => `<a class="search-result" href="${articleUrl(article, selectedKind)}">
         <div><small>${kindLabel(article.kind)}</small><time>${formatDate(articleSourceCreatedAt(article))}</time></div>
         <h2>${escapeHtml(displayTitle(article))}</h2>
+        ${matchType === "comment" ? `<p class="search-result-source">评论 · ${escapeHtml(commentAuthorName(comment))}</p>` : ""}
         <p>${highlightSnippet(snippet, query)}</p>
       </a>`).join("")}
     </section>`
@@ -526,23 +527,51 @@ function searchArticles(articles, query) {
   const terms = searchTerms(query);
   if (!terms.length) return [];
 
-  return articles
-    .map((article) => {
-      const title = displayTitle(article);
-      const excerpt = article.excerpt || "";
-      const content = stripHtml(article.contentHtml).replace(/\s+/g, " ").trim();
-      const haystack = normalizeSearchText([title, excerpt, content, article.sourceUrl].join(" "));
-      if (!terms.every((term) => haystack.includes(term))) return null;
+  const results = [];
 
-      const score = scoreSearchMatch(terms, title, 12) + scoreSearchMatch(terms, excerpt, 5) + scoreSearchMatch(terms, content, 1);
-      return {
+  for (const article of articles) {
+    const title = displayTitle(article);
+    const excerpt = article.excerpt || "";
+    const content = stripHtml(article.contentHtml).replace(/\s+/g, " ").trim();
+    const haystack = normalizeSearchText([title, excerpt, content, article.sourceUrl].join(" "));
+    if (terms.every((term) => haystack.includes(term))) {
+      results.push({
         article,
-        score,
-        snippet: searchSnippet(content || excerpt || title, terms)
-      };
-    })
-    .filter(Boolean)
+        matchType: "article",
+        score: scoreSearchMatch(terms, title, 12) + scoreSearchMatch(terms, excerpt, 5) + scoreSearchMatch(terms, content, 1),
+        snippet: searchSnippet(content || excerpt || title, terms),
+        comment: null
+      });
+    }
+
+    const commentMatches = store.listComments(article.id)
+      .map((comment) => searchCommentMatch(article, comment, terms))
+      .filter(Boolean)
+      .slice(0, 3);
+    results.push(...commentMatches);
+  }
+
+  return results
     .sort((a, b) => b.score - a.score || Date.parse(articleSourceCreatedAt(b.article)) - Date.parse(articleSourceCreatedAt(a.article)));
+}
+
+function searchCommentMatch(article, comment, terms) {
+  const author = commentAuthorName(comment);
+  const body = String(comment.body || "").replace(/\s+/g, " ").trim();
+  const haystack = normalizeSearchText([author, comment.replyToAuthorName, body, comment.ipLocation].join(" "));
+  if (!terms.every((term) => haystack.includes(term))) return null;
+  return {
+    article,
+    matchType: "comment",
+    comment,
+    score: scoreSearchMatch(terms, author, 7) + scoreSearchMatch(terms, body, 4) + scoreSearchMatch(terms, comment.replyToAuthorName || "", 3),
+    snippet: searchSnippet(body || author, terms)
+  };
+}
+
+function commentAuthorName(comment) {
+  if (comment.source === "zhihu") return comment.authorName || "知乎用户";
+  return store.getUserById(comment.userId)?.name || "用户";
 }
 
 function normalizeSearchQuery(value) {

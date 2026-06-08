@@ -86,6 +86,12 @@ try {
     throw new Error("Search did not return the created article.");
   }
 
+  const commentSearch = await fetch(`${base}/search?q=${encodeURIComponent("Imported Zhihu reply")}`, { headers: { cookie } });
+  const commentSearchHtml = await commentSearch.text();
+  if (!commentSearch.ok || !commentSearchHtml.includes("Smoke Test Article") || !commentSearchHtml.includes("评论")) {
+    throw new Error("Search did not return imported external comments.");
+  }
+
   await post("/comments/smoke-test-article", { body: "Looks good." }, cookie);
   const commented = await fetch(`${base}/articles/smoke-test-article`, { headers: { cookie } });
   const commentedHtml = await commented.text();
