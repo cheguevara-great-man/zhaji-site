@@ -277,6 +277,17 @@ export class Store {
     return { created, updated };
   }
 
+  async updateArticleCommentSyncStates(states) {
+    for (const state of states) {
+      const article = this.getArticleById(state.articleId);
+      if (!article) continue;
+      article.sourceCommentCount = Number(state.sourceCommentCount || 0);
+      article.sourceCommentSyncedAt = state.sourceCommentSyncedAt || new Date().toISOString();
+      article.updatedAt = new Date().toISOString();
+    }
+    await this.save();
+  }
+
   async deleteComment(id, user) {
     const comment = this.db.comments.find((item) => item.id === id);
     if (!comment) return;
