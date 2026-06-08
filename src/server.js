@@ -93,6 +93,7 @@ function getCurrentUser(req) {
 function home(res, user) {
   const allArticles = store.listArticles();
   const articles = allArticles.slice(0, homePageSize);
+  const counts = countKinds(allArticles);
   sendHtml(res, 200, layout({
     title: "札记",
     user,
@@ -102,6 +103,12 @@ function home(res, user) {
         <p class="eyebrow">札记</p>
         <h1>思想是人在时间里存在的痕迹。</h1>
         <p>文章、回答、想法、小说和随笔都放在这里。</p>
+        <dl class="hero-stats">
+          <div><dt>${allArticles.length}</dt><dd>全部内容</dd></div>
+          <div><dt>${counts.article}</dt><dd>文章</dd></div>
+          <div><dt>${counts.answer}</dt><dd>回答</dd></div>
+          <div><dt>${counts.pin}</dt><dd>想法</dd></div>
+        </dl>
       </div>
     </section>
     <section class="section-head"><h2>最近更新</h2><a href="/archive">全部目录</a></section>
@@ -172,7 +179,7 @@ function searchPage(res, user, url) {
     title: query ? `搜索：${query}` : "搜索",
     user,
     active: "/search",
-    body: `<section class="page-heading"><div><h1>搜索</h1><p>搜索标题、摘要和正文。</p></div></section>
+    body: `<section class="page-heading"><div><h1>搜索</h1><p>搜索标题、正文、原文链接和评论。</p></div></section>
     <form class="search-form" method="get" action="/search">
       <input name="q" value="${escapeHtml(query)}" placeholder="输入关键词" autofocus>
       ${selectedKind ? `<input type="hidden" name="kind" value="${escapeHtml(selectedKind)}">` : ""}
@@ -520,7 +527,7 @@ function articleUrl(article, scope = "") {
 
 function articleExcerpt(article) {
   const source = article.excerpt || article.contentHtml;
-  return stripHtml(source).replace(/\s+/g, " ").trim().slice(0, 140);
+  return cleanVisibleText(source).slice(0, 140);
 }
 
 function searchArticles(articles, query) {
@@ -532,7 +539,7 @@ function searchArticles(articles, query) {
   for (const article of articles) {
     const title = displayTitle(article);
     const excerpt = article.excerpt || "";
-    const content = stripHtml(article.contentHtml).replace(/\s+/g, " ").trim();
+    const content = cleanVisibleText(article.contentHtml);
     const haystack = normalizeSearchText([title, excerpt, content, article.sourceUrl].join(" "));
     if (terms.every((term) => haystack.includes(term))) {
       results.push({
@@ -631,9 +638,10 @@ function escapeRegExp(value) {
 
 function displayTitle(article) {
   const title = String(article?.title || "");
-  if (article?.kind === "answer") return title.replace(/^回答[:：]\s*/, "");
-  if (article?.kind === "pin") return title.replace(/^想法[:：]\s*/, "");
-  return title;
+  const cleanTitle = cleanVisibleText(title);
+  if (article?.kind === "answer") return cleanTitle.replace(/^回答[:：]\s*/, "");
+  if (article?.kind === "pin") return cleanTitle.replace(/^想法[:：]\s*/, "");
+  return cleanTitle;
 }
 
 function buildCommentTree(comments) {
@@ -730,7 +738,20 @@ function fromDateInput(value) {
 }
 
 function stripHtml(value) {
-  return String(value || "").replace(/<[^>]*>/g, "");
+  return String(value || "").replace(/<[^>]*(>|$)/g, "");
+}
+
+function cleanVisibleText(value) {
+  let text = String(value || "");
+  for (let i = 0; i < 2; i += 1) {
+    text = text
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+  }
+  return stripHtml(text).replace(/\s+/g, " ").trim();
 }
 
 function baseUrl(req) {
