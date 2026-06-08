@@ -219,12 +219,62 @@ export class Store {
       id: randomToken(12),
       articleId,
       userId,
+      parentId: null,
       body: String(body).trim(),
+      source: "local",
       createdAt: new Date().toISOString()
     };
     this.db.comments.push(comment);
     await this.save();
     return comment;
+  }
+
+  async upsertExternalComments(comments) {
+    let created = 0;
+    let updated = 0;
+
+    for (const input of comments) {
+      if (!input.articleId || !input.source || !input.sourceCommentId || !input.body) continue;
+      const existing = this.db.comments.find((comment) => comment.source === input.source && comment.sourceCommentId === input.sourceCommentId);
+      const next = {
+        articleId: input.articleId,
+        userId: null,
+        body: String(input.body || "").trim(),
+        source: input.source,
+        sourceCommentId: String(input.sourceCommentId),
+        sourceParentCommentId: input.sourceParentCommentId ? String(input.sourceParentCommentId) : "",
+        authorName: String(input.authorName || "").trim(),
+        authorUrl: String(input.authorUrl || "").trim(),
+        authorAvatarUrl: String(input.authorAvatarUrl || "").trim(),
+        authorHeadline: String(input.authorHeadline || "").trim(),
+        replyToAuthorName: String(input.replyToAuthorName || "").trim(),
+        likeCount: Number(input.likeCount || 0),
+        ipLocation: String(input.ipLocation || "").trim(),
+        createdAt: input.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existing) {
+        Object.assign(existing, next);
+        updated += 1;
+      } else {
+        this.db.comments.push({
+          id: randomToken(12),
+          parentId: null,
+          importedAt: new Date().toISOString(),
+          ...next
+        });
+        created += 1;
+      }
+    }
+
+    for (const comment of this.db.comments.filter((item) => item.source && item.sourceParentCommentId)) {
+      const parent = this.db.comments.find((item) => item.articleId === comment.articleId && item.source === comment.source && item.sourceCommentId === comment.sourceParentCommentId);
+      comment.parentId = parent?.id || null;
+    }
+
+    await this.save();
+    return { created, updated };
   }
 
   async deleteComment(id, user) {

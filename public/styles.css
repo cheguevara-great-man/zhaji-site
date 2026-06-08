@@ -467,6 +467,29 @@ mark {
   gap: 16px;
 }
 
+.comment-meta {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.external-comment {
+  background: rgba(255, 253, 248, 0.72);
+  box-shadow: none;
+}
+
+.comment-replies {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  border-left: 2px solid var(--line);
+  padding-left: 14px;
+}
+
+.comment-replies .comment {
+  margin-bottom: 0;
+}
+
 .comment-form {
   margin-top: 20px;
 }

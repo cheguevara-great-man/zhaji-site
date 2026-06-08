@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -69,10 +69,15 @@ try {
     throw new Error("Article creation did not redirect to admin.");
   }
 
+  await seedExternalComments(join(tmp, "db.json"));
+
   const article = await fetch(`${base}/articles/smoke-test-article`, { headers: { cookie } });
   const articleHtml = await article.text();
   if (!article.ok || !articleHtml.includes("Smoke Test Article")) {
     throw new Error("Created article was not rendered.");
+  }
+  if (!articleHtml.includes("Imported Zhihu comment") || !articleHtml.includes("Imported Zhihu reply")) {
+    throw new Error("Imported external comments were not rendered.");
   }
 
   const search = await fetch(`${base}/search?q=smoke`, { headers: { cookie } });
@@ -138,4 +143,39 @@ async function readLatestEmailLink(outboxDir, path) {
   }
 
   throw new Error(`No ${path} link was found in the outbox email.`);
+}
+
+async function seedExternalComments(dbPath) {
+  const db = JSON.parse(await readFile(dbPath, "utf8"));
+  const article = db.articles.find((item) => item.slug === "smoke-test-article");
+  if (!article) throw new Error("Smoke article was not found in db.");
+  db.comments.push({
+    id: "external-parent",
+    articleId: article.id,
+    userId: null,
+    parentId: null,
+    body: "Imported Zhihu comment",
+    source: "zhihu",
+    sourceCommentId: "zhihu-parent",
+    sourceParentCommentId: "",
+    authorName: "知乎用户甲",
+    likeCount: 3,
+    ipLocation: "北京",
+    createdAt: new Date().toISOString()
+  }, {
+    id: "external-child",
+    articleId: article.id,
+    userId: null,
+    parentId: "external-parent",
+    body: "Imported Zhihu reply",
+    source: "zhihu",
+    sourceCommentId: "zhihu-child",
+    sourceParentCommentId: "zhihu-parent",
+    authorName: "知乎用户乙",
+    replyToAuthorName: "知乎用户甲",
+    likeCount: 1,
+    ipLocation: "上海",
+    createdAt: new Date().toISOString()
+  });
+  await writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
 }

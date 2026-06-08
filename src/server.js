@@ -196,7 +196,7 @@ function articlePage(res, user, slug, url) {
   const article = store.getArticleBySlug(slug, { includeDrafts: user?.isAdmin });
   if (!article) return sendHtml(res, 404, layout({ title: "Article not found", user, body: `<section class="narrow"><h1>文章不存在</h1></section>` }));
 
-  const comments = store.listComments(article.id);
+  const comments = buildCommentTree(store.listComments(article.id));
   const scope = normalizeKindFilter(url.searchParams.get("kind") || url.searchParams.get("scope"));
   const nav = articleReadingNav(article, scope);
   sendHtml(res, 200, layout({
@@ -607,13 +607,37 @@ function displayTitle(article) {
   return title;
 }
 
+function buildCommentTree(comments) {
+  const byId = new Map(comments.map((comment) => [comment.id, { ...comment, replies: [] }]));
+  const roots = [];
+
+  for (const comment of byId.values()) {
+    const parent = comment.parentId ? byId.get(comment.parentId) : null;
+    if (parent) parent.replies.push(comment);
+    else roots.push(comment);
+  }
+
+  return roots;
+}
+
 function commentView(comment, currentUser) {
-  const author = store.getUserById(comment.userId);
+  const author = comment.source === "zhihu" ? null : store.getUserById(comment.userId);
   const canDelete = currentUser?.isAdmin || currentUser?.id === comment.userId;
-  return `<div class="comment">
-    <div><strong>${escapeHtml(author?.name || "用户")}</strong><time>${formatDate(comment.createdAt)}</time></div>
+  const authorName = comment.source === "zhihu" ? comment.authorName || "知乎用户" : author?.name || "用户";
+  const authorLink = comment.source === "zhihu" && comment.authorUrl ? `<a href="${escapeHtml(comment.authorUrl)}" rel="noreferrer">${escapeHtml(authorName)}</a>` : escapeHtml(authorName);
+  const meta = [
+    comment.source === "zhihu" ? "知乎评论" : "",
+    comment.replyToAuthorName ? `回复 ${comment.replyToAuthorName}` : "",
+    comment.ipLocation ? `IP ${comment.ipLocation}` : "",
+    comment.likeCount ? `${comment.likeCount} 赞` : ""
+  ].filter(Boolean).join(" · ");
+
+  return `<div class="comment ${comment.source === "zhihu" ? "external-comment" : ""}">
+    <div><strong>${authorLink}</strong><time>${formatDate(comment.createdAt)}</time></div>
+    ${meta ? `<p class="comment-meta">${escapeHtml(meta)}</p>` : ""}
     <p>${textToHtml(comment.body)}</p>
     ${canDelete ? `<form method="post" action="/delete-comment/${comment.id}"><button>删除</button></form>` : ""}
+    ${comment.replies?.length ? `<div class="comment-replies">${comment.replies.map((reply) => commentView(reply, currentUser)).join("")}</div>` : ""}
   </div>`;
 }
 
