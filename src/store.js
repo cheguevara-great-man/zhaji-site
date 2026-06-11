@@ -138,10 +138,11 @@ export class Store {
     return session ? this.getUserById(session.userId) : null;
   }
 
-  listArticles({ includeDrafts = false, kind = "" } = {}) {
+  listArticles({ includeDrafts = false, kind = "", includeTrades = false } = {}) {
     return [...this.db.articles]
       .filter((article) => includeDrafts || article.status === "published")
       .filter((article) => !kind || article.kind === kind)
+      .filter((article) => kind || includeTrades || article.kind !== "trade")
       .sort((a, b) => Date.parse(displaySourceCreatedAt(b)) - Date.parse(displaySourceCreatedAt(a)));
   }
 

@@ -92,8 +92,9 @@ function getCurrentUser(req) {
 
 function home(res, user) {
   const allArticles = store.listArticles();
+  const allContent = store.listArticles({ includeTrades: true });
   const articles = allArticles.slice(0, homePageSize);
-  const counts = countKinds(allArticles);
+  const counts = countKinds(allContent);
   sendHtml(res, 200, layout({
     title: "札记",
     user,
@@ -137,7 +138,8 @@ function archive(res, user, url) {
   const selectedKind = normalizeKindFilter(url.searchParams.get("kind"));
   const articles = store.listArticles({ kind: selectedKind });
   const allArticles = store.listArticles();
-  const counts = countKinds(allArticles);
+  const allContent = store.listArticles({ includeTrades: true });
+  const counts = countKinds(allContent);
   const filters = [
     ["", "全部", allArticles.length],
     ["article", "文章", counts.article],
@@ -168,7 +170,8 @@ function searchPage(res, user, url) {
   const allArticles = store.listArticles();
   const scopedArticles = store.listArticles({ kind: selectedKind });
   const results = query ? searchArticles(scopedArticles, query).slice(0, 100) : [];
-  const counts = countKinds(allArticles);
+  const allContent = store.listArticles({ includeTrades: true });
+  const counts = countKinds(allContent);
   const filters = [
     ["", "全部", allArticles.length],
     ["article", "文章", counts.article],

@@ -215,7 +215,8 @@ async function openAndExtractNote(page, title) {
       .map((img) => ({ src: img.src, width: img.naturalWidth, height: img.naturalHeight }))
       .filter((img) => img.src && img.width > 80 && img.height > 80)
       .filter((img, index, array) => array.findIndex((other) => other.src === img.src) === index);
-    return { lines, images };
+    const richText = dialog.querySelector(".IZ65Hb-vIzZGf-L9AdLc-haAclf[contenteditable='true']");
+    return { lines, images, html: richText?.innerHTML || "" };
   }, title);
 }
 
@@ -233,13 +234,14 @@ function normalizeFullNote(base, details) {
     return true;
   });
   const body = cleanText(bodyLines.join("\n\n")) || cleanText(base.body);
+  const richHtml = keepRichTextToHtml(details.html, title, base.dateLine);
   const sourceCreatedAt = parseTradeDate(title) || parseKeepDate(base.dateLine) || new Date().toISOString();
   const sourceId = sha1(title);
   return {
     title,
     kind: "trade",
     excerpt: body.replace(/\s+/g, " ").slice(0, 180),
-    contentHtml: textToHtml(body),
+    contentHtml: richHtml || textToHtml(body),
     sourceUrl: `keep://daily-trade/${sourceId}`,
     sourceCreatedAt,
     sourceUpdatedAt: sourceCreatedAt,
@@ -247,6 +249,49 @@ function normalizeFullNote(base, details) {
     status: "published",
     authorId: "keep-import"
   };
+}
+
+function keepRichTextToHtml(rawHtml, title, dateLine) {
+  if (!rawHtml) return "";
+  const paragraphs = [...rawHtml.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((match) => keepParagraphToHtml(match[1]))
+    .map((html) => html.replace(/<br\s*\/?>/gi, "").trim())
+    .filter(Boolean)
+    .filter((html) => {
+      const text = stripTags(html).trim();
+      return text && text !== title && text !== dateLine && text !== "\u6bcf\u65e5\u4ea4\u6613";
+    });
+  return paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("\n");
+}
+
+function keepParagraphToHtml(html) {
+  const chunks = [...String(html || "").matchAll(/<span\b([^>]*)>([\s\S]*?)<\/span>/gi)];
+  if (!chunks.length) return cleanKeepInlineHtml(html);
+  return chunks.map((match) => {
+    const attrs = match[1] || "";
+    const content = cleanKeepInlineHtml(match[2]);
+    if (!content) return "";
+    const isBold = /vIzZGf-fmcmS-c8csvc/.test(attrs)
+      || /font-weight\s*:\s*(bold|[6-9]00)/i.test(attrs)
+      || /font-weight\s*:\s*(bold|[6-9])/i.test(attrs)
+      || /font-weight-[6-9]00/i.test(attrs);
+    return isBold ? `<strong>${content}</strong>` : content;
+  }).join("");
+}
+
+function cleanKeepInlineHtml(value) {
+  return String(value || "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/<br\s*\/?>/gi, "<br>")
+    .replace(/<\/div>\s*<div\b[^>]*>/gi, "<br>")
+    .replace(/<div\b[^>]*>/gi, "")
+    .replace(/<\/div>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
+function stripTags(value) {
+  return String(value || "").replace(/<[^>]+>/g, "");
 }
 
 async function saveKeepImage(page, src, sourceUrl, index) {
