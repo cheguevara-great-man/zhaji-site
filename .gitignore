@@ -3,6 +3,7 @@ data/db-before-*.json
 data/outbox
 data/playwright-profile
 data/keep-browser-profile
+data/keep-storage-state.json
 data/keep-trades*.json
 data/zhihu-storage.json
 data/zhihu-export

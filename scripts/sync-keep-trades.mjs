@@ -11,6 +11,10 @@ const shouldImport = Boolean(args.import || args.sync);
 const profileDir = resolve(args.profile || "data/keep-browser-profile");
 const uploadRoot = resolve(args.uploadRoot || "public/uploads/keep/trades");
 const maxScrolls = Number(args.maxScrolls || 80);
+const headless = Boolean(args.headless || process.env.KEEP_HEADLESS === "1");
+const browserChannel = args.channel ? String(args.channel) : "chrome";
+const storageStatePath = args.storageState ? resolve(args.storageState) : "";
+const saveStorageStatePath = args.saveStorageState ? resolve(args.saveStorageState) : "";
 
 let notes = [];
 
@@ -25,6 +29,10 @@ if (args.input) {
     await page.waitForTimeout(5000);
 
     await assertLoggedIn(page);
+    if (saveStorageStatePath) {
+      await context.storageState({ path: saveStorageStatePath });
+      console.log(`Saved Keep browser storage to ${saveStorageStatePath}`);
+    }
     await openLabel(page, label);
     notes = await collectLabelNotes(page, label);
     notes = await hydrateFullNotes(page, notes);
@@ -56,16 +64,33 @@ async function connectOrLaunch() {
     const version = await fetchJson(`http://127.0.0.1:${port}/json/version`);
     return chromium.connectOverCDP(version.webSocketDebuggerUrl);
   } catch {
+    if (storageStatePath) {
+      const browser = await chromium.launch({
+        headless,
+        ...(browserChannel === "chromium" ? {} : { channel: browserChannel }),
+        args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-popup-blocking"]
+      });
+      const context = await browser.newContext({
+        storageState: storageStatePath,
+        viewport: { width: 1280, height: 900 }
+      });
+      return {
+        contexts: () => [context],
+        close: () => browser.close()
+      };
+    }
+
     await mkdir(profileDir, { recursive: true });
-    return chromium.launchPersistentContext(profileDir, {
-      channel: "chrome",
-      headless: false,
+    const context = await chromium.launchPersistentContext(profileDir, {
+      ...(browserChannel === "chromium" ? {} : { channel: browserChannel }),
+      headless,
       viewport: { width: 1280, height: 900 },
-      args: [`--remote-debugging-port=${port}`, "--no-first-run", "--disable-popup-blocking"]
-    }).then((context) => ({
+      args: [`--remote-debugging-port=${port}`, "--no-first-run", "--no-sandbox", "--disable-dev-shm-usage", "--disable-popup-blocking"]
+    });
+    return {
       contexts: () => [context],
       close: () => context.close()
-    }));
+    };
   }
 }
 
