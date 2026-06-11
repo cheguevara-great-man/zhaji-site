@@ -7,6 +7,7 @@ data/keep-trades*.json
 data/zhihu-storage.json
 data/zhihu-export
 public/uploads/zhihu
+public/uploads/keep
 .playwright-cli
 .deploy
 node_modules

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import { textToHtml } from "../src/render.js";
 import { Store } from "../src/store.js";
 
@@ -9,6 +9,7 @@ const label = String(args.label || "每日交易");
 const port = Number(args.port || 9224);
 const shouldImport = Boolean(args.import || args.sync);
 const profileDir = resolve(args.profile || "data/keep-browser-profile");
+const uploadRoot = resolve(args.uploadRoot || "public/uploads/keep/trades");
 const maxScrolls = Number(args.maxScrolls || 80);
 
 let notes = [];
@@ -26,6 +27,7 @@ if (args.input) {
     await assertLoggedIn(page);
     await openLabel(page, label);
     notes = await collectLabelNotes(page, label);
+    notes = await hydrateFullNotes(page, notes);
   } finally {
     await browser.close();
   }
@@ -98,6 +100,7 @@ async function openLabel(page, label) {
 }
 
 async function collectLabelNotes(page, label) {
+  await closeOpenNote(page);
   const collected = new Map();
   let stableScrolls = 0;
   let lastCount = 0;
@@ -149,6 +152,129 @@ async function collectLabelNotes(page, label) {
   }
 
   return [...collected.values()];
+}
+
+async function hydrateFullNotes(page, notes) {
+  const hydrated = [];
+  await mkdir(uploadRoot, { recursive: true });
+
+  for (const note of notes) {
+    const details = await openAndExtractNote(page, note.title);
+    if (!details) {
+      hydrated.push(note);
+      continue;
+    }
+
+    const normalized = normalizeFullNote(note, details);
+    const images = [];
+    for (let index = 0; index < details.images.length; index += 1) {
+      const image = details.images[index];
+      const saved = await saveKeepImage(page, image.src, normalized.sourceUrl, index);
+      if (saved) images.push(saved);
+    }
+    normalized.contentHtml += images.map((image) => `\n<p><img src="${image.publicPath}" alt=""></p>`).join("");
+    hydrated.push(normalized);
+    await closeOpenNote(page);
+  }
+
+  return hydrated;
+}
+
+async function openAndExtractNote(page, title) {
+  await closeOpenNote(page);
+  const opened = await page.evaluate(async (targetTitle) => {
+    const roots = [...document.querySelectorAll(".IZ65Hb-n0tgWb")];
+    const root = roots.find((el) => {
+      const heading = el.querySelector(".IZ65Hb-YPqjbf")?.innerText?.trim();
+      return heading === targetTitle;
+    }) || roots.find((el) => (el.innerText || "").split("\n").map((line) => line.trim()).includes(targetTitle));
+    if (!root) return false;
+    root.scrollIntoView({ block: "center" });
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    root.click();
+    return true;
+  }, title);
+  if (!opened) return null;
+
+  await page.waitForTimeout(1200);
+  return page.evaluate((targetTitle) => {
+    const dialogs = [...document.querySelectorAll(".VIpgJd-TUo6Hb, [role='dialog']")]
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        return { el, rect, text: (el.innerText || "").trim() };
+      })
+      .filter((item) => item.rect.width > 300 && item.rect.height > 200 && item.text.includes(targetTitle))
+      .sort((a, b) => (b.rect.width * b.rect.height) - (a.rect.width * a.rect.height));
+    const dialog = dialogs[0]?.el;
+    if (!dialog) return null;
+    const lines = (dialog.innerText || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const images = [...dialog.querySelectorAll("img")]
+      .map((img) => ({ src: img.src, width: img.naturalWidth, height: img.naturalHeight }))
+      .filter((img) => img.src && img.width > 80 && img.height > 80)
+      .filter((img, index, array) => array.findIndex((other) => other.src === img.src) === index);
+    return { lines, images };
+  }, title);
+}
+
+async function closeOpenNote(page) {
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(250).catch(() => {});
+}
+
+function normalizeFullNote(base, details) {
+  const title = cleanText(base.title);
+  const bodyLines = details.lines.filter((line) => {
+    if (line === title || line === "每日交易" || line === "完成" || line === "关闭") return false;
+    if (line === base.dateLine) return false;
+    if (/^修改时间[:：]/.test(line)) return false;
+    return true;
+  });
+  const body = cleanText(bodyLines.join("\n\n")) || cleanText(base.body);
+  const sourceCreatedAt = parseTradeDate(title) || parseKeepDate(base.dateLine) || new Date().toISOString();
+  const sourceId = sha1(title);
+  return {
+    title,
+    kind: "trade",
+    excerpt: body.replace(/\s+/g, " ").slice(0, 180),
+    contentHtml: textToHtml(body),
+    sourceUrl: `keep://daily-trade/${sourceId}`,
+    sourceCreatedAt,
+    sourceUpdatedAt: sourceCreatedAt,
+    publishedAt: sourceCreatedAt,
+    status: "published",
+    authorId: "keep-import"
+  };
+}
+
+async function saveKeepImage(page, src, sourceUrl, index) {
+  const sourceId = sourceUrl.split("/").pop() || sha1(sourceUrl);
+  const result = await page.evaluate(async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const buffer = await blob.arrayBuffer();
+    const bytes = [...new Uint8Array(buffer)];
+    return { bytes, type: blob.type || "image/jpeg" };
+  }, src).catch(() => null);
+  if (!result?.bytes?.length) return null;
+
+  const extension = imageExtension(result.type, src);
+  const fileName = `${sourceId}-${String(index + 1).padStart(2, "0")}${extension}`;
+  const filePath = resolve(uploadRoot, fileName);
+  await writeFile(filePath, Buffer.from(result.bytes));
+  return { filePath, publicPath: `/uploads/keep/trades/${fileName}` };
+}
+
+function imageExtension(type, src) {
+  if (type.includes("png")) return ".png";
+  if (type.includes("gif")) return ".gif";
+  if (type.includes("webp")) return ".webp";
+  const pathExtension = extname(new URL(src).pathname).toLowerCase();
+  if ([".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(pathExtension)) return pathExtension;
+  return ".jpg";
 }
 
 function normalizeNote(note) {
