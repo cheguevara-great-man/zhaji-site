@@ -12,6 +12,7 @@
     "login:zhihu:server": "node scripts/zhihu-server-login.mjs",
     "sync:zhihu": "node scripts/collect-zhihu.mjs --sync --import --headless --noLoginWait",
     "sync:zhihu:comments": "node scripts/sync-zhihu-comments.mjs",
+    "sync:keep:trades": "node scripts/sync-keep-trades.mjs --import",
     "repair:zhihu": "node scripts/repair-zhihu-db.mjs",
     "smoke": "node scripts/smoke-test.mjs"
   },

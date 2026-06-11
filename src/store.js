@@ -139,10 +139,11 @@ export class Store {
   }
 
   listArticles({ includeDrafts = false, kind = "" } = {}) {
-    return [...this.db.articles]
+    const articles = [...this.db.articles]
       .filter((article) => includeDrafts || article.status === "published")
-      .filter((article) => !kind || article.kind === kind)
-      .sort((a, b) => Date.parse(displaySourceCreatedAt(b)) - Date.parse(displaySourceCreatedAt(a)));
+      .filter((article) => !kind || article.kind === kind);
+    const direction = kind === "trade" ? 1 : -1;
+    return articles.sort((a, b) => direction * (Date.parse(displaySourceCreatedAt(a)) - Date.parse(displaySourceCreatedAt(b))));
   }
 
   getArticleBySlug(slug, { includeDrafts = false } = {}) {
@@ -332,7 +333,7 @@ export class Store {
 }
 
 function normalizeKind(kind) {
-  return ["article", "answer", "pin"].includes(kind) ? kind : "article";
+  return ["article", "answer", "pin", "trade"].includes(kind) ? kind : "article";
 }
 
 function displaySourceCreatedAt(article) {

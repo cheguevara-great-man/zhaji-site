@@ -1,6 +1,9 @@
 data/db.json
+data/db-before-*.json
 data/outbox
 data/playwright-profile
+data/keep-browser-profile
+data/keep-trades*.json
 data/zhihu-storage.json
 data/zhihu-export
 public/uploads/zhihu
@@ -8,6 +11,7 @@ public/uploads/zhihu
 .deploy
 node_modules
 *.log
+.codex-ui-server.pid
 .env
 .DS_Store
 Thumbs.db

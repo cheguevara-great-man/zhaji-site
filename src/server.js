@@ -108,6 +108,7 @@ function home(res, user) {
           <div><dt>${counts.article}</dt><dd>文章</dd></div>
           <div><dt>${counts.answer}</dt><dd>回答</dd></div>
           <div><dt>${counts.pin}</dt><dd>想法</dd></div>
+          <div><dt>${counts.trade}</dt><dd>交易日志</dd></div>
         </dl>
       </div>
     </section>
@@ -141,7 +142,8 @@ function archive(res, user, url) {
     ["", "全部", allArticles.length],
     ["article", "文章", counts.article],
     ["answer", "回答", counts.answer],
-    ["pin", "想法", counts.pin]
+    ["pin", "想法", counts.pin],
+    ["trade", "交易日志", counts.trade]
   ];
   sendHtml(res, 200, layout({
     title: "目录",
@@ -171,7 +173,8 @@ function searchPage(res, user, url) {
     ["", "全部", allArticles.length],
     ["article", "文章", counts.article],
     ["answer", "回答", counts.answer],
-    ["pin", "想法", counts.pin]
+    ["pin", "想法", counts.pin],
+    ["trade", "交易日志", counts.trade]
   ];
   const filterPrefix = `/search?q=${encodeURIComponent(query)}`;
 
@@ -423,7 +426,7 @@ function articleForm(res, user, article = null) {
         <label>摘要<textarea name="excerpt" rows="3">${escapeHtml(article?.excerpt || "")}</textarea></label>
         <label>原文链接<input name="sourceUrl" value="${escapeHtml(article?.sourceUrl || "")}"></label>
         <label>知乎创建时间<input type="datetime-local" name="publishedAt" value="${toDateInput(articleSourceCreatedAt(article || {}))}"></label>
-        <label>类型<select name="kind"><option value="article" ${article?.kind !== "answer" && article?.kind !== "pin" ? "selected" : ""}>文章</option><option value="answer" ${article?.kind === "answer" ? "selected" : ""}>回答</option><option value="pin" ${article?.kind === "pin" ? "selected" : ""}>想法</option></select></label>
+        <label>类型<select name="kind"><option value="article" ${!["answer", "pin", "trade"].includes(article?.kind) ? "selected" : ""}>文章</option><option value="answer" ${article?.kind === "answer" ? "selected" : ""}>回答</option><option value="pin" ${article?.kind === "pin" ? "selected" : ""}>想法</option><option value="trade" ${article?.kind === "trade" ? "selected" : ""}>交易日志</option></select></label>
         <label>状态<select name="status"><option value="published" ${article?.status !== "draft" ? "selected" : ""}>发布</option><option value="draft" ${article?.status === "draft" ? "selected" : ""}>草稿</option></select></label>
         <label>格式<select name="format"><option value="markdown">Markdown</option><option value="html" ${article ? "selected" : ""}>HTML</option></select></label>
         <label>正文<textarea class="content-editor" name="content" required rows="18">${escapeHtml(article?.contentHtml || "")}</textarea></label>
@@ -767,23 +770,25 @@ function clampInteger(value, min, max) {
 }
 
 function normalizeKindFilter(kind) {
-  return ["article", "answer", "pin"].includes(kind) ? kind : "";
+  return ["article", "answer", "pin", "trade"].includes(kind) ? kind : "";
 }
 
 function inferKindFromTitle(title) {
   if (String(title).startsWith("回答：")) return "answer";
   if (String(title).startsWith("想法：")) return "pin";
+  if (String(title).startsWith("交易日志：")) return "trade";
   return "article";
 }
 
 function kindLabel(kind) {
   if (kind === "answer") return "回答";
   if (kind === "pin") return "想法";
+  if (kind === "trade") return "交易";
   return "文章";
 }
 
 function countKinds(articles) {
-  const counts = { article: 0, answer: 0, pin: 0 };
+  const counts = { article: 0, answer: 0, pin: 0, trade: 0 };
   for (const article of articles) {
     const kind = normalizeKindFilter(article.kind) || inferKindFromTitle(article.title);
     counts[kind] += 1;
