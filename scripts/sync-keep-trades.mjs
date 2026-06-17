@@ -14,6 +14,7 @@ const maxScrolls = Number(args.maxScrolls || 80);
 const headless = Boolean(args.headless || process.env.KEEP_HEADLESS === "1");
 const browserChannel = args.channel ? String(args.channel) : "chrome";
 const storageStatePath = args.storageState ? resolve(args.storageState) : "";
+const seedStorageStatePath = args.seedStorageState ? resolve(args.seedStorageState) : "";
 const saveStorageStatePath = args.saveStorageState ? resolve(args.saveStorageState) : "";
 
 let notes = [];
@@ -87,10 +88,35 @@ async function connectOrLaunch() {
       viewport: { width: 1280, height: 900 },
       args: [`--remote-debugging-port=${port}`, "--no-first-run", "--no-sandbox", "--disable-dev-shm-usage", "--disable-popup-blocking"]
     });
+    if (seedStorageStatePath) {
+      await seedContextFromStorageState(context, seedStorageStatePath);
+    }
     return {
       contexts: () => [context],
       close: () => context.close()
     };
+  }
+}
+
+async function seedContextFromStorageState(context, statePath) {
+  const state = JSON.parse(await readFile(statePath, "utf8"));
+  if (Array.isArray(state.cookies) && state.cookies.length) {
+    await context.addCookies(state.cookies);
+  }
+
+  for (const origin of state.origins || []) {
+    if (!origin.origin || !Array.isArray(origin.localStorage) || !origin.localStorage.length) continue;
+    const page = await context.newPage();
+    try {
+      await page.goto(origin.origin, { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+      await page.evaluate((items) => {
+        for (const item of items) {
+          if (item?.name) localStorage.setItem(item.name, item.value || "");
+        }
+      }, origin.localStorage);
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 }
 

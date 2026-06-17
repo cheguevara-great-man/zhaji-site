@@ -18,7 +18,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S %z')] starting Keep trade sync"
   node scripts/sync-keep-trades.mjs \
     --headless \
     --channel chromium \
-    --storageState data/keep-storage-state.json \
+    --profile data/keep-browser-profile \
     --import \
     --output data/keep-trades-server-latest.json
 
