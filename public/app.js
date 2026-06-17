@@ -48,3 +48,68 @@ if (feed && sentinel) {
     sentinel.textContent = "已经到底了";
   }
 }
+
+const prose = document.querySelector(".prose");
+
+if (prose) {
+  const lightbox = document.createElement("div");
+  lightbox.className = "image-lightbox";
+  lightbox.setAttribute("role", "dialog");
+  lightbox.setAttribute("aria-modal", "true");
+  lightbox.setAttribute("aria-label", "Image preview");
+  lightbox.hidden = true;
+  lightbox.innerHTML = `
+    <button class="image-lightbox-close" type="button" aria-label="Close image">×</button>
+    <img class="image-lightbox-img" alt="">
+  `;
+  document.body.append(lightbox);
+
+  const lightboxImage = lightbox.querySelector(".image-lightbox-img");
+  const closeButton = lightbox.querySelector(".image-lightbox-close");
+  let lastFocusedElement = null;
+
+  function openImageLightbox(image) {
+    lastFocusedElement = document.activeElement;
+    lightboxImage.src = image.currentSrc || image.src;
+    lightboxImage.alt = image.alt || "";
+    lightbox.hidden = false;
+    document.body.classList.add("lightbox-open");
+    closeButton.focus();
+  }
+
+  function closeImageLightbox() {
+    if (lightbox.hidden) return;
+    lightbox.hidden = true;
+    lightboxImage.removeAttribute("src");
+    document.body.classList.remove("lightbox-open");
+    if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+      lastFocusedElement.focus();
+    }
+  }
+
+  for (const image of prose.querySelectorAll("img")) {
+    image.tabIndex = 0;
+    image.setAttribute("role", "button");
+    image.setAttribute("aria-label", "Open image preview");
+  }
+
+  prose.addEventListener("click", (event) => {
+    const image = event.target.closest(".prose img");
+    if (image) openImageLightbox(image);
+  });
+
+  prose.addEventListener("keydown", (event) => {
+    const image = event.target.closest(".prose img");
+    if (!image || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    openImageLightbox(image);
+  });
+
+  closeButton.addEventListener("click", closeImageLightbox);
+  lightbox.addEventListener("click", (event) => {
+    if (event.target === lightbox) closeImageLightbox();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeImageLightbox();
+  });
+}
