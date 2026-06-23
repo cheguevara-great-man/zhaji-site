@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 import { clearSessionCookie, hashPassword, parseCookies, sessionCookie, verifyPassword } from "./auth.js";
 import { Emailer } from "./email.js";
 import { loadEnv } from "./env.js";
@@ -694,7 +695,21 @@ async function serveStatic(req, res, path) {
   const filePath = join(publicDir, safePath);
   const type = mimeType(filePath);
   const body = await readFile(filePath);
-  res.writeHead(200, { "Content-Type": `${type}; charset=utf-8`, "Cache-Control": "no-store" });
+  const textAsset = isTextMime(type);
+  const headers = {
+    "Content-Type": textAsset ? `${type}; charset=utf-8` : type,
+    "Cache-Control": staticCacheControl(safePath)
+  };
+
+  if (textAsset && body.length > 1024 && acceptsGzip(req)) {
+    headers["Content-Encoding"] = "gzip";
+    headers.Vary = "Accept-Encoding";
+    res.writeHead(200, headers);
+    res.end(gzipSync(body));
+    return;
+  }
+
+  res.writeHead(200, headers);
   res.end(body);
 }
 
@@ -803,10 +818,24 @@ function mimeType(filePath) {
   const ext = extname(filePath).toLowerCase();
   if (ext === ".css") return "text/css";
   if (ext === ".js") return "application/javascript";
+  if (ext === ".json") return "application/json";
   if (ext === ".png") return "image/png";
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   if (ext === ".gif") return "image/gif";
   if (ext === ".webp") return "image/webp";
   if (ext === ".avif") return "image/avif";
+  if (ext === ".svg") return "image/svg+xml";
   return "application/octet-stream";
+}
+
+function isTextMime(type) {
+  return type.startsWith("text/") || type === "application/javascript" || type === "application/json" || type === "image/svg+xml";
+}
+
+function acceptsGzip(req) {
+  return /\bgzip\b/.test(req.headers["accept-encoding"] || "");
+}
+
+function staticCacheControl(path) {
+  return path.startsWith("vendor/") ? "public, max-age=31536000, immutable" : "no-cache";
 }

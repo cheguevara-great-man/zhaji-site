@@ -1,8 +1,8 @@
 :root {
   --bg: #f4f7fb;
   --bg-soft: #eaf0f7;
-  --panel: rgba(255, 255, 255, 0.62);
-  --panel-soft: rgba(255, 255, 255, 0.42);
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-soft: rgba(255, 255, 255, 0.52);
   --ink: #111827;
   --ink-soft: #263244;
   --muted: #667085;
@@ -16,8 +16,8 @@
   --rust: #ff453a;
   --accent-ink: #ffffff;
   --warn: #d92d20;
-  --glass: rgba(255, 255, 255, 0.58);
-  --glass-strong: rgba(255, 255, 255, 0.74);
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(255, 255, 255, 0.84);
   --glass-border: rgba(255, 255, 255, 0.72);
   --shadow: 0 20px 60px rgba(30, 41, 59, 0.12);
   --shadow-hover: 0 28px 80px rgba(30, 41, 59, 0.18);
@@ -44,11 +44,11 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at var(--pointer-x) calc(var(--pointer-y) + var(--scroll-shift)), rgba(10, 132, 255, 0.14), transparent 46vw),
-    radial-gradient(ellipse at calc(100% - var(--pointer-x)) 14%, rgba(52, 199, 89, 0.11), transparent 44vw),
-    radial-gradient(ellipse at 72% calc(74% - var(--scroll-shift)), rgba(255, 159, 10, 0.1), transparent 42vw),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.34), rgba(10, 132, 255, 0.06), rgba(52, 199, 89, 0.07), rgba(255, 159, 10, 0.06)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(244, 247, 251, 0.72) 360px),
+    radial-gradient(ellipse at var(--pointer-x) calc(var(--pointer-y) + var(--scroll-shift)), rgba(69, 151, 171, 0.12), transparent 46vw),
+    radial-gradient(ellipse at calc(100% - var(--pointer-x)) 14%, rgba(93, 166, 141, 0.1), transparent 44vw),
+    radial-gradient(ellipse at 72% calc(74% - var(--scroll-shift)), rgba(235, 177, 97, 0.08), transparent 42vw),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.46), rgba(80, 151, 171, 0.05), rgba(82, 151, 122, 0.06), rgba(235, 177, 97, 0.04)),
+    linear-gradient(180deg, rgba(250, 252, 251, 0.86), rgba(244, 247, 246, 0.74) 360px),
     var(--bg);
   background-attachment: fixed;
   color: var(--ink);
@@ -64,11 +64,10 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.48), transparent 72%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.24) 28%, rgba(244, 248, 247, 0.62) 100%),
+    radial-gradient(ellipse at 52% 8%, rgba(255, 255, 255, 0.54), transparent 38%);
+  opacity: 0.52;
   content: "";
 }
 
@@ -99,7 +98,7 @@ body::after {
 }
 
 .three-water-canvas {
-  opacity: 0.82;
+  opacity: 0.66;
   mix-blend-mode: normal;
 }
 
@@ -109,7 +108,7 @@ body::after {
 }
 
 .ambient-lake-canvas {
-  opacity: 0.42;
+  opacity: 0.34;
   mix-blend-mode: normal;
 }
 
@@ -302,12 +301,9 @@ dl {
 
 .hero h1 {
   max-width: none;
-  background: linear-gradient(100deg, var(--ink) 8%, #0a84ff 44%, #111827 72%, #ff9f0a 108%);
-  background-clip: text;
+  color: var(--ink);
   font-size: clamp(38px, 5vw, 60px);
-  text-fill-color: transparent;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55), 0 18px 42px rgba(20, 61, 76, 0.12);
   white-space: nowrap;
 }
 

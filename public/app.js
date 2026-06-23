@@ -77,7 +77,7 @@ if (!reduceMotion) {
       renderer.setClearColor(0x000000, 0);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xdff6f4);
+      scene.background = new THREE.Color(0xe9f5f1);
 
       const camera = new THREE.PerspectiveCamera(44, 1, 1, 24000);
       const sun = new THREE.Vector3(-0.55, 0.72, 0.34).normalize();
@@ -85,17 +85,17 @@ if (!reduceMotion) {
       const waterGeometry = new THREE.PlaneGeometry(18000, 18000, 256, 256);
       const waterNormals = new THREE.TextureLoader().load("/public/vendor/three/waternormals.png");
       waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
-      waterNormals.repeat.set(6, 6);
+      waterNormals.repeat.set(3.6, 3.6);
 
       const water = new Water(waterGeometry, {
         textureWidth: 1024,
         textureHeight: 1024,
         waterNormals,
         sunDirection: sun,
-        sunColor: 0xffe1a2,
-        waterColor: 0x2f8897,
-        distortionScale: 5.8,
-        alpha: 0.86,
+        sunColor: 0xe8d9aa,
+        waterColor: 0x3d858b,
+        distortionScale: 3.8,
+        alpha: 0.78,
         fog: false
       });
       water.rotation.x = -Math.PI / 2;
@@ -104,21 +104,21 @@ if (!reduceMotion) {
 
       const skyBack = new THREE.Mesh(
         new THREE.PlaneGeometry(22000, 8000),
-        new THREE.MeshBasicMaterial({ color: 0xeaf7f2, transparent: true, opacity: 0.72 })
+        new THREE.MeshBasicMaterial({ color: 0xeef8f4, transparent: true, opacity: 0.56 })
       );
       skyBack.position.set(0, 4200, -5600);
       scene.add(skyBack);
 
       const haze = new THREE.Mesh(
         new THREE.PlaneGeometry(19000, 2800),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.36 })
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28 })
       );
       haze.position.set(0, 2300, -4100);
       scene.add(haze);
 
       const sunPatch = new THREE.Mesh(
         new THREE.CircleGeometry(900, 64),
-        new THREE.MeshBasicMaterial({ color: 0xfff4c8, transparent: true, opacity: 0.36 })
+        new THREE.MeshBasicMaterial({ color: 0xfff4c8, transparent: true, opacity: 0.22 })
       );
       sunPatch.position.set(2400, 2500, -3900);
       scene.add(sunPatch);
@@ -132,19 +132,19 @@ if (!reduceMotion) {
         },
         render(now) {
           const time = now * 0.001;
-          water.material.uniforms.time.value = time * (0.72 + wind.energy * 0.92);
-          water.material.uniforms.distortionScale.value = 4.8 + wind.energy * 4.2;
+          water.material.uniforms.time.value = time * (0.54 + wind.energy * 0.72);
+          water.material.uniforms.distortionScale.value = 3.2 + wind.energy * 2.8;
           water.material.uniforms.sunDirection.value.set(
             -0.48 + wind.x * 0.18,
-            0.74,
+            0.68,
             0.38 + wind.y * 0.16
           ).normalize();
           camera.position.set(
             (pointer.x - 50) * 9 + wind.x * 42,
-            760 + wind.energy * 64,
+            790 + wind.energy * 52,
             1340 - Math.min(190, scrollY * 0.05)
           );
-          camera.lookAt((pointer.x - 50) * 10, -18, -220 - wind.energy * 120);
+          camera.lookAt((pointer.x - 50) * 9, -18, -260 - wind.energy * 90);
           renderer.render(scene, camera);
         }
       };
@@ -489,7 +489,7 @@ if (!reduceMotion) {
         for (let col = -1; col < canvasWidth / columnGap + 2; col += 1) {
           const seed = row * 17.13 + col * 31.7;
           const shimmer = Math.sin(time * (1.25 + (seed % 5) * 0.1) + seed);
-          if (shimmer < 0.36 - wind.energy * 0.32) continue;
+          if (shimmer < 0.58 - wind.energy * 0.28) continue;
 
           const x = col * columnGap
             + Math.sin(time * 0.36 + seed) * 44
@@ -498,8 +498,8 @@ if (!reduceMotion) {
           const y = baseY
             + waveLift
             + Math.sin((x + drift) * 0.008 + rowPhase) * (7 + wind.energy * 10);
-          const length = 34 + wind.energy * 80 + Math.max(0, shimmer) * 42;
-          const alpha = (0.02 + Math.max(0, shimmer) * 0.055) * (0.7 + wind.energy * 1.1);
+          const length = 28 + wind.energy * 62 + Math.max(0, shimmer) * 32;
+          const alpha = (0.012 + Math.max(0, shimmer) * 0.035) * (0.64 + wind.energy * 0.9);
           const tilt = Math.max(-0.48, Math.min(0.48, wind.y * 0.38));
           const gradient = context.createLinearGradient(x - length / 2, y, x + length / 2, y + tilt * length);
           gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
