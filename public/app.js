@@ -124,11 +124,11 @@ if (!reduceMotion) {
 
       float waveHeight(vec2 p, vec2 wind, float t, float energy) {
         vec2 side = vec2(-wind.y, wind.x);
-        float longWave = sin(dot(p, wind) * 5.8 + t * (0.9 + energy * 1.9));
-        float crossWave = sin(dot(p, side) * 8.2 - t * (0.7 + energy * 1.2));
-        float fineWave = fbm(p * 3.4 + wind * t * (0.24 + energy * 0.38));
-        float glintWave = sin((p.x + p.y) * 24.0 + t * 1.8 + fineWave * 4.0);
-        return longWave * 0.42 + crossWave * 0.2 + fineWave * 0.72 + glintWave * 0.08;
+        float longWave = sin(dot(p, wind) * 4.9 + t * (0.72 + energy * 1.35));
+        float crossWave = sin(dot(p, side) * 7.4 - t * (0.55 + energy * 0.92));
+        float fineWave = fbm(p * 2.75 + wind * t * (0.18 + energy * 0.28));
+        float glintWave = sin((p.x + p.y) * 18.0 + t * 1.25 + fineWave * 3.2);
+        return longWave * 0.36 + crossWave * 0.18 + fineWave * 0.58 + glintWave * 0.05;
       }
 
       void main() {
@@ -145,36 +145,42 @@ if (!reduceMotion) {
         float h = waveHeight(p, wind, t, energy);
         float hx = waveHeight(p + vec2(eps, 0.0), wind, t, energy);
         float hy = waveHeight(p + vec2(0.0, eps), wind, t, energy);
-        vec3 normal = normalize(vec3((h - hx) * 6.4, (h - hy) * 6.4, 1.0));
+        vec3 normal = normalize(vec3((h - hx) * 4.2, (h - hy) * 4.2, 1.0));
 
         vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
         vec3 lightDir = normalize(vec3(-0.32, 0.5, 0.8));
         vec3 halfDir = normalize(lightDir + viewDir);
         float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
-        float specular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 66.0) * (0.35 + energy * 0.55);
+        float specular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 92.0) * (0.2 + energy * 0.46);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.0);
 
-        vec3 deep = vec3(0.26, 0.63, 0.76);
-        vec3 shallow = vec3(0.68, 0.91, 0.84);
-        vec3 sky = vec3(0.86, 0.95, 1.0);
-        vec3 sun = vec3(1.0, 0.92, 0.72);
+        vec3 deep = vec3(0.39, 0.67, 0.76);
+        vec3 shallow = vec3(0.72, 0.89, 0.82);
+        vec3 sky = vec3(0.92, 0.97, 0.98);
+        vec3 sun = vec3(1.0, 0.95, 0.78);
         float depth = smoothstep(-0.7, 0.85, p.y + h * 0.08);
         vec3 color = mix(deep, shallow, depth);
-        color = mix(color, sky, fresnel * 0.58);
-        color *= 0.86 + h * 0.08 + diffuse * 0.26;
-        color += specular * sun * 1.35;
+        color = mix(color, sky, fresnel * 0.32);
+        color *= 0.89 + h * 0.07 + diffuse * 0.2;
+        color += specular * sun * 1.05;
 
-        float caustics = smoothstep(0.58, 0.96, sin((p.x * 17.0 + h * 1.8) + t * 2.1) * sin((p.y * 21.0 - h * 1.2) - t * 1.7));
-        color += caustics * vec3(0.42, 0.76, 0.68) * (0.18 + energy * 0.16);
+        float softNoise = fbm(p * 1.65 + wind * t * 0.42);
+        color = mix(color, vec3(0.95, 0.98, 0.96), softNoise * 0.1);
 
-        float rippleBands = sin(dot(p, wind) * 18.0 + t * 3.2 + fbm(p * 4.0) * 2.7);
-        float lightBands = smoothstep(0.42, 0.98, rippleBands);
-        float darkBands = smoothstep(0.86, -0.18, rippleBands);
-        color += lightBands * vec3(0.38, 0.76, 0.78) * (0.07 + energy * 0.05);
-        color -= darkBands * vec3(0.08, 0.17, 0.18) * 0.08;
+        float rippleBands = sin(dot(p, wind) * 15.0 + t * 2.25 + fbm(p * 3.0) * 2.2);
+        float lightBands = smoothstep(0.62, 0.98, rippleBands);
+        float darkBands = smoothstep(-0.15, -0.94, rippleBands);
+        color += lightBands * vec3(0.46, 0.7, 0.68) * (0.052 + energy * 0.042);
+        color -= darkBands * vec3(0.08, 0.13, 0.13) * 0.055;
+
+        float sparkle = smoothstep(0.965, 1.0, lightBands * noise(p * 76.0 + t));
+        color += sparkle * sun * (0.22 + energy * 0.24);
+
+        float broadReflection = smoothstep(0.72, 1.0, sin((p.x * 2.6 - p.y * 4.1) + t * 0.7 + h * 0.25));
+        color += broadReflection * vec3(0.18, 0.28, 0.25) * 0.055;
 
         float vignette = smoothstep(0.92, 0.08, distance(uv, vec2(0.52, 0.46)));
-        float alpha = 0.76 * vignette + 0.16;
+        float alpha = 0.68 * vignette + 0.1;
         gl_FragColor = vec4(color, alpha);
       }
     `;
@@ -253,7 +259,7 @@ if (!reduceMotion) {
 
     context.save();
     context.translate(x, y);
-    context.globalAlpha = 0.34;
+    context.globalAlpha = 0.24;
     context.fillStyle = "rgba(18, 74, 91, 0.9)";
     context.beginPath();
     context.moveTo(-width * 0.48, height * 0.08);
@@ -270,14 +276,14 @@ if (!reduceMotion) {
     context.lineTo(0, -height * 0.88);
     context.stroke();
 
-    context.fillStyle = "rgba(255, 255, 255, 0.58)";
+    context.fillStyle = "rgba(255, 255, 255, 0.46)";
     context.beginPath();
     context.moveTo(2 * scale, -height * 0.82);
     context.quadraticCurveTo(width * 0.34, -height * 0.38, 4 * scale, -height * 0.04);
     context.closePath();
     context.fill();
 
-    context.globalAlpha = 0.18;
+    context.globalAlpha = 0.12;
     const reflection = context.createLinearGradient(-width * 0.7, height * 0.42, width * 0.7, height * 0.42);
     reflection.addColorStop(0, "rgba(255, 255, 255, 0)");
     reflection.addColorStop(0.5, "rgba(20, 91, 112, 0.55)");
@@ -302,7 +308,7 @@ if (!reduceMotion) {
     context.save();
     context.translate(x, y);
     context.scale(direction, 1);
-    context.globalAlpha = life.kind === "shrimp" ? 0.3 : 0.28;
+    context.globalAlpha = life.kind === "shrimp" ? 0.2 : 0.18;
     context.strokeStyle = "rgba(12, 87, 109, 0.72)";
     context.fillStyle = "rgba(18, 105, 128, 0.42)";
     context.lineWidth = 1.15 * scale;
