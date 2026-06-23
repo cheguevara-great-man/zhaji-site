@@ -14,6 +14,89 @@ if (!reduceMotion) {
   const targetPointer = { x: 50, y: 18 };
   let scrollY = window.scrollY;
   let scheduled = false;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { alpha: true });
+  const ripples = [];
+  let canvasWidth = 0;
+  let canvasHeight = 0;
+  let pixelRatio = 1;
+  let lastRippleAt = 0;
+
+  canvas.className = "ambient-ripple-canvas";
+  document.body.prepend(canvas);
+
+  function resizeRippleCanvas() {
+    pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    canvasWidth = window.innerWidth;
+    canvasHeight = window.innerHeight;
+    canvas.width = Math.round(canvasWidth * pixelRatio);
+    canvas.height = Math.round(canvasHeight * pixelRatio);
+    canvas.style.width = `${canvasWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  }
+
+  function addRipple(x, y, strength = 1) {
+    ripples.push({
+      x,
+      y,
+      age: 0,
+      radius: 10,
+      strength: Math.min(Math.max(strength, 0.55), 1.45)
+    });
+    if (ripples.length > 18) ripples.shift();
+  }
+
+  function drawRippleFrame(now) {
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
+    context.globalCompositeOperation = "screen";
+
+    const time = now * 0.001;
+    for (let line = 0; line < 5; line += 1) {
+      const baseY = canvasHeight * (0.18 + line * 0.18);
+      context.beginPath();
+      for (let x = -40; x <= canvasWidth + 40; x += 28) {
+        const y = baseY
+          + Math.sin(x * 0.008 + time * 0.82 + line * 1.4) * 11
+          + Math.sin(x * 0.015 - time * 0.48) * 5;
+        if (x === -40) context.moveTo(x, y);
+        else context.lineTo(x, y);
+      }
+      context.strokeStyle = `rgba(255, 255, 255, ${0.022 + line * 0.004})`;
+      context.lineWidth = 1;
+      context.stroke();
+    }
+
+    for (let index = ripples.length - 1; index >= 0; index -= 1) {
+      const ripple = ripples[index];
+      ripple.age += 1;
+      ripple.radius += 3.2 + ripple.strength * 1.6;
+      const opacity = Math.max(0, 1 - ripple.age / 90) * 0.16 * ripple.strength;
+      if (opacity <= 0.004) {
+        ripples.splice(index, 1);
+        continue;
+      }
+
+      const gradient = context.createRadialGradient(ripple.x, ripple.y, Math.max(0, ripple.radius - 18), ripple.x, ripple.y, ripple.radius + 28);
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+      gradient.addColorStop(0.46, `rgba(255, 255, 255, ${opacity})`);
+      gradient.addColorStop(0.64, `rgba(10, 132, 255, ${opacity * 0.38})`);
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+      context.beginPath();
+      context.arc(ripple.x, ripple.y, ripple.radius + 28, 0, Math.PI * 2);
+      context.fillStyle = gradient;
+      context.fill();
+
+      context.beginPath();
+      context.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+      context.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.92})`;
+      context.lineWidth = 1;
+      context.stroke();
+    }
+
+    context.globalCompositeOperation = "source-over";
+    window.requestAnimationFrame(drawRippleFrame);
+  }
 
   function updateAmbientBackground() {
     scheduled = false;
@@ -40,6 +123,12 @@ if (!reduceMotion) {
   window.addEventListener("pointermove", (event) => {
     targetPointer.x = 42 + ((event.clientX / window.innerWidth) - 0.5) * 22;
     targetPointer.y = 24 + ((event.clientY / window.innerHeight) - 0.5) * 18;
+    const now = window.performance.now();
+    if (now - lastRippleAt > 70) {
+      const movement = Math.hypot(event.movementX || 0, event.movementY || 0);
+      addRipple(event.clientX, event.clientY, 0.65 + movement / 46);
+      lastRippleAt = now;
+    }
     scheduleAmbientUpdate();
   }, { passive: true });
 
@@ -48,7 +137,11 @@ if (!reduceMotion) {
     scheduleAmbientUpdate();
   }, { passive: true });
 
+  window.addEventListener("resize", resizeRippleCanvas, { passive: true });
+
+  resizeRippleCanvas();
   updateAmbientBackground();
+  window.requestAnimationFrame(drawRippleFrame);
 }
 
 const feed = document.querySelector("[data-feed]");

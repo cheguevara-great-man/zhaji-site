@@ -87,6 +87,17 @@ body::after {
   content: "";
 }
 
+.ambient-ripple-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.72;
+  mix-blend-mode: screen;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -214,6 +225,8 @@ nav a.active {
 }
 
 main {
+  position: relative;
+  z-index: 1;
   width: min(var(--content-width), calc(100% - 44px));
   margin: 0 auto;
   padding: 56px 0 96px;
@@ -1057,7 +1070,8 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
-  .article-card::after {
+  .article-card::after,
+  .ambient-ripple-canvas {
     display: none;
   }
 
