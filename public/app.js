@@ -21,6 +21,16 @@ if (!reduceMotion) {
   let pixelRatio = 1;
   const wind = { x: 1, y: 0, energy: 0 };
   const targetWind = { x: 1, y: 0, energy: 0 };
+  const lakeBoats = [
+    { x: 0.36, y: 0.15, scale: 0.82, speed: 0.018, phase: 0.4 },
+    { x: 0.82, y: 0.34, scale: 0.62, speed: -0.014, phase: 2.1 }
+  ];
+  const lakeLife = [
+    { x: 0.18, y: 0.72, scale: 0.72, speed: 0.028, phase: 0.2, kind: "fish" },
+    { x: 0.58, y: 0.37, scale: 0.56, speed: -0.02, phase: 1.5, kind: "fish" },
+    { x: 0.86, y: 0.82, scale: 0.48, speed: -0.017, phase: 3.2, kind: "shrimp" },
+    { x: 0.39, y: 0.54, scale: 0.42, speed: 0.022, phase: 4.1, kind: "shrimp" }
+  ];
 
   canvas.className = "ambient-lake-canvas";
   document.body.prepend(canvas);
@@ -34,6 +44,103 @@ if (!reduceMotion) {
     canvas.style.width = `${canvasWidth}px`;
     canvas.style.height = `${canvasHeight}px`;
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  }
+
+  function wrapCanvasX(value, margin) {
+    const span = canvasWidth + margin * 2;
+    return ((value + margin) % span + span) % span - margin;
+  }
+
+  function drawBoat(boat, time, drift) {
+    const scale = boat.scale * Math.max(0.82, Math.min(1.18, canvasWidth / 1320));
+    const x = wrapCanvasX(canvasWidth * boat.x + time * boat.speed * canvasWidth + wind.x * drift * 0.05, 90 * scale);
+    const y = canvasHeight * boat.y + Math.sin(time * 0.72 + boat.phase) * 7 + wind.y * 10;
+    const width = 66 * scale;
+    const height = 44 * scale;
+
+    context.save();
+    context.translate(x, y);
+    context.globalAlpha = 0.34;
+    context.fillStyle = "rgba(18, 74, 91, 0.9)";
+    context.beginPath();
+    context.moveTo(-width * 0.48, height * 0.08);
+    context.quadraticCurveTo(-width * 0.2, height * 0.34, width * 0.18, height * 0.28);
+    context.quadraticCurveTo(width * 0.44, height * 0.22, width * 0.52, height * 0.02);
+    context.lineTo(-width * 0.48, height * 0.02);
+    context.closePath();
+    context.fill();
+
+    context.strokeStyle = "rgba(17, 84, 104, 0.64)";
+    context.lineWidth = 1.1 * scale;
+    context.beginPath();
+    context.moveTo(0, height * 0.03);
+    context.lineTo(0, -height * 0.88);
+    context.stroke();
+
+    context.fillStyle = "rgba(255, 255, 255, 0.58)";
+    context.beginPath();
+    context.moveTo(2 * scale, -height * 0.82);
+    context.quadraticCurveTo(width * 0.34, -height * 0.38, 4 * scale, -height * 0.04);
+    context.closePath();
+    context.fill();
+
+    context.globalAlpha = 0.18;
+    const reflection = context.createLinearGradient(-width * 0.7, height * 0.42, width * 0.7, height * 0.42);
+    reflection.addColorStop(0, "rgba(255, 255, 255, 0)");
+    reflection.addColorStop(0.5, "rgba(20, 91, 112, 0.55)");
+    reflection.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.strokeStyle = reflection;
+    context.lineWidth = 5 * scale;
+    context.beginPath();
+    context.moveTo(-width * 0.62, height * 0.44);
+    context.quadraticCurveTo(0, height * 0.5 + Math.sin(time + boat.phase) * 3, width * 0.64, height * 0.42);
+    context.stroke();
+    context.restore();
+  }
+
+  function drawFish(life, time, drift) {
+    const direction = life.speed >= 0 ? 1 : -1;
+    const scale = life.scale * Math.max(0.78, Math.min(1.12, canvasWidth / 1280));
+    const x = wrapCanvasX(canvasWidth * life.x + time * life.speed * canvasWidth + wind.x * drift * 0.028, 70 * scale);
+    const y = canvasHeight * life.y + Math.sin(time * 1.1 + life.phase) * 14 + wind.y * 8;
+    const bodyLength = (life.kind === "shrimp" ? 24 : 34) * scale;
+    const bodyHeight = (life.kind === "shrimp" ? 8 : 12) * scale;
+
+    context.save();
+    context.translate(x, y);
+    context.scale(direction, 1);
+    context.globalAlpha = life.kind === "shrimp" ? 0.3 : 0.28;
+    context.strokeStyle = "rgba(12, 87, 109, 0.72)";
+    context.fillStyle = "rgba(18, 105, 128, 0.42)";
+    context.lineWidth = 1.15 * scale;
+
+    if (life.kind === "shrimp") {
+      context.beginPath();
+      context.arc(0, 0, bodyLength * 0.42, Math.PI * 0.08, Math.PI * 1.12, false);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(-bodyLength * 0.42, -bodyHeight * 0.28);
+      context.lineTo(-bodyLength * 0.64, -bodyHeight * 0.72);
+      context.moveTo(-bodyLength * 0.42, bodyHeight * 0.16);
+      context.lineTo(-bodyLength * 0.64, bodyHeight * 0.62);
+      context.stroke();
+    } else {
+      context.beginPath();
+      context.ellipse(0, 0, bodyLength * 0.42, bodyHeight * 0.5, 0, 0, Math.PI * 2);
+      context.fill();
+      context.beginPath();
+      context.moveTo(-bodyLength * 0.42, 0);
+      context.lineTo(-bodyLength * 0.68, -bodyHeight * 0.48);
+      context.lineTo(-bodyLength * 0.68, bodyHeight * 0.48);
+      context.closePath();
+      context.fill();
+      context.beginPath();
+      context.moveTo(bodyLength * 0.12, 0);
+      context.quadraticCurveTo(bodyLength * 0.32, -bodyHeight * 0.26, bodyLength * 0.45, -bodyHeight * 0.06);
+      context.stroke();
+    }
+
+    context.restore();
   }
 
   function drawLakeFrame(now) {
@@ -124,6 +231,15 @@ if (!reduceMotion) {
       context.strokeStyle = highlight;
       context.lineWidth = 18 + wind.energy * 18;
       context.stroke();
+    }
+
+    context.filter = "none";
+    context.globalCompositeOperation = "source-over";
+    for (const life of lakeLife) {
+      drawFish(life, time, drift);
+    }
+    for (const boat of lakeBoats) {
+      drawBoat(boat, time, drift);
     }
 
     context.filter = "none";

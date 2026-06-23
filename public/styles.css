@@ -401,17 +401,6 @@ dl {
   content: "";
 }
 
-.article-card::after {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.22) 36%, rgba(255, 255, 255, 0.58) 50%, rgba(255, 255, 255, 0.16) 62%, transparent 100%);
-  opacity: 0;
-  transform: translateX(-62%);
-  transition: opacity 220ms ease, transform 700ms ease;
-  pointer-events: none;
-  content: "";
-}
-
 .article-card:hover,
 .archive-row:hover,
 .search-result:hover {
@@ -419,11 +408,6 @@ dl {
   background: var(--glass-strong);
   box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
-}
-
-.article-card:hover::after {
-  opacity: 1;
-  transform: translateX(62%);
 }
 
 time,
@@ -1070,7 +1054,6 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
-  .article-card::after,
   .ambient-lake-canvas {
     display: none;
   }
