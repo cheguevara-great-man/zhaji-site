@@ -87,6 +87,7 @@ body::after {
   content: "";
 }
 
+.ambient-water-canvas,
 .ambient-lake-canvas {
   position: fixed;
   inset: 0;
@@ -94,6 +95,14 @@ body::after {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.ambient-water-canvas {
+  opacity: 0.9;
+  mix-blend-mode: normal;
+}
+
+.ambient-lake-canvas {
   opacity: 0.88;
   mix-blend-mode: normal;
 }
@@ -1054,6 +1063,7 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
+  .ambient-water-canvas,
   .ambient-lake-canvas {
     display: none;
   }

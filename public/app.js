@@ -14,6 +14,7 @@ if (!reduceMotion) {
   const targetPointer = { x: 50, y: 18 };
   let scrollY = window.scrollY;
   let scheduled = false;
+  const waterCanvas = document.createElement("canvas");
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: true });
   let canvasWidth = 0;
@@ -32,19 +33,211 @@ if (!reduceMotion) {
     { x: 0.39, y: 0.54, scale: 0.42, speed: 0.022, phase: 4.1, kind: "shrimp" }
   ];
 
+  waterCanvas.className = "ambient-water-canvas";
   canvas.className = "ambient-lake-canvas";
   document.body.prepend(canvas);
+  document.body.prepend(waterCanvas);
 
   function resizeLakeCanvas() {
     pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     canvasWidth = window.innerWidth;
     canvasHeight = window.innerHeight;
+    waterCanvas.width = Math.round(canvasWidth * pixelRatio);
+    waterCanvas.height = Math.round(canvasHeight * pixelRatio);
+    waterCanvas.style.width = `${canvasWidth}px`;
+    waterCanvas.style.height = `${canvasHeight}px`;
     canvas.width = Math.round(canvasWidth * pixelRatio);
     canvas.height = Math.round(canvasHeight * pixelRatio);
     canvas.style.width = `${canvasWidth}px`;
     canvas.style.height = `${canvasHeight}px`;
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    webglLake?.resize();
   }
+
+  function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.warn(gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function createWebglLake() {
+    const gl = waterCanvas.getContext("webgl", {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "high-performance"
+    });
+    if (!gl) return null;
+
+    const vertexSource = `
+      attribute vec2 a_position;
+      varying vec2 v_uv;
+
+      void main() {
+        v_uv = a_position * 0.5 + 0.5;
+        gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
+    const fragmentSource = `
+      precision mediump float;
+
+      varying vec2 v_uv;
+      uniform vec2 u_resolution;
+      uniform float u_time;
+      uniform vec2 u_wind;
+      uniform float u_energy;
+      uniform float u_scroll;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+          mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+          u.y
+        );
+      }
+
+      float fbm(vec2 p) {
+        float value = 0.0;
+        float amplitude = 0.5;
+        mat2 rotate = mat2(0.82, -0.58, 0.58, 0.82);
+        for (int i = 0; i < 5; i++) {
+          value += amplitude * noise(p);
+          p = rotate * p * 2.03 + 9.7;
+          amplitude *= 0.5;
+        }
+        return value;
+      }
+
+      float waveHeight(vec2 p, vec2 wind, float t, float energy) {
+        vec2 side = vec2(-wind.y, wind.x);
+        float longWave = sin(dot(p, wind) * 5.8 + t * (0.9 + energy * 1.9));
+        float crossWave = sin(dot(p, side) * 8.2 - t * (0.7 + energy * 1.2));
+        float fineWave = fbm(p * 3.4 + wind * t * (0.24 + energy * 0.38));
+        float glintWave = sin((p.x + p.y) * 24.0 + t * 1.8 + fineWave * 4.0);
+        return longWave * 0.42 + crossWave * 0.2 + fineWave * 0.72 + glintWave * 0.08;
+      }
+
+      void main() {
+        vec2 uv = v_uv;
+        vec2 aspect = vec2(u_resolution.x / max(u_resolution.y, 1.0), 1.0);
+        vec2 p = (uv - 0.5) * aspect;
+        vec2 wind = normalize(u_wind + vec2(0.001, 0.0));
+        float energy = clamp(u_energy, 0.0, 1.0);
+        float t = u_time * (0.34 + energy * 0.42);
+        p += wind * t * 0.12;
+        p.y += sin(u_scroll * 0.002) * 0.015;
+
+        float eps = 0.006;
+        float h = waveHeight(p, wind, t, energy);
+        float hx = waveHeight(p + vec2(eps, 0.0), wind, t, energy);
+        float hy = waveHeight(p + vec2(0.0, eps), wind, t, energy);
+        vec3 normal = normalize(vec3((h - hx) * 6.4, (h - hy) * 6.4, 1.0));
+
+        vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+        vec3 lightDir = normalize(vec3(-0.32, 0.5, 0.8));
+        vec3 halfDir = normalize(lightDir + viewDir);
+        float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
+        float specular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 66.0) * (0.35 + energy * 0.55);
+        float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.0);
+
+        vec3 deep = vec3(0.26, 0.63, 0.76);
+        vec3 shallow = vec3(0.68, 0.91, 0.84);
+        vec3 sky = vec3(0.86, 0.95, 1.0);
+        vec3 sun = vec3(1.0, 0.92, 0.72);
+        float depth = smoothstep(-0.7, 0.85, p.y + h * 0.08);
+        vec3 color = mix(deep, shallow, depth);
+        color = mix(color, sky, fresnel * 0.58);
+        color *= 0.86 + h * 0.08 + diffuse * 0.26;
+        color += specular * sun * 1.35;
+
+        float caustics = smoothstep(0.58, 0.96, sin((p.x * 17.0 + h * 1.8) + t * 2.1) * sin((p.y * 21.0 - h * 1.2) - t * 1.7));
+        color += caustics * vec3(0.42, 0.76, 0.68) * (0.18 + energy * 0.16);
+
+        float rippleBands = sin(dot(p, wind) * 18.0 + t * 3.2 + fbm(p * 4.0) * 2.7);
+        float lightBands = smoothstep(0.42, 0.98, rippleBands);
+        float darkBands = smoothstep(0.86, -0.18, rippleBands);
+        color += lightBands * vec3(0.38, 0.76, 0.78) * (0.07 + energy * 0.05);
+        color -= darkBands * vec3(0.08, 0.17, 0.18) * 0.08;
+
+        float vignette = smoothstep(0.92, 0.08, distance(uv, vec2(0.52, 0.46)));
+        float alpha = 0.76 * vignette + 0.16;
+        gl_FragColor = vec4(color, alpha);
+      }
+    `;
+
+    const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    if (!vertexShader || !fragmentShader) return null;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.warn(gl.getProgramInfoLog(program));
+      return null;
+    }
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -1, -1,
+      1, -1,
+      -1, 1,
+      -1, 1,
+      1, -1,
+      1, 1
+    ]), gl.STATIC_DRAW);
+
+    const position = gl.getAttribLocation(program, "a_position");
+    const resolution = gl.getUniformLocation(program, "u_resolution");
+    const timeUniform = gl.getUniformLocation(program, "u_time");
+    const windUniform = gl.getUniformLocation(program, "u_wind");
+    const energyUniform = gl.getUniformLocation(program, "u_energy");
+    const scrollUniform = gl.getUniformLocation(program, "u_scroll");
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    return {
+      resize() {
+        gl.viewport(0, 0, waterCanvas.width, waterCanvas.height);
+      },
+      render(now) {
+        gl.viewport(0, 0, waterCanvas.width, waterCanvas.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.enableVertexAttribArray(position);
+        gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+        gl.uniform2f(resolution, canvasWidth, canvasHeight);
+        gl.uniform1f(timeUniform, now * 0.001);
+        gl.uniform2f(windUniform, wind.x || 1, wind.y || 0);
+        gl.uniform1f(energyUniform, wind.energy);
+        gl.uniform1f(scrollUniform, scrollY);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+    };
+  }
+
+  const webglLake = createWebglLake();
 
   function wrapCanvasX(value, margin) {
     const span = canvasWidth + margin * 2;
@@ -156,6 +349,62 @@ if (!reduceMotion) {
     const speed = 0.72 + wind.energy * 2.5;
     const windLift = Math.max(-0.5, Math.min(0.5, wind.y));
     const drift = time * (34 + wind.x * 24) * speed;
+
+    if (webglLake) {
+      webglLake.render(now);
+      context.clearRect(0, 0, canvasWidth, canvasHeight);
+      context.filter = "none";
+      context.globalCompositeOperation = "source-over";
+      for (const life of lakeLife) {
+        drawFish(life, time, drift);
+      }
+      for (const boat of lakeBoats) {
+        drawBoat(boat, time, drift);
+      }
+
+      context.globalCompositeOperation = "screen";
+      const rowGap = Math.max(21, Math.min(36, canvasHeight / 28));
+      const columnGap = Math.max(74, Math.min(128, canvasWidth / 13));
+      for (let row = -1; row < canvasHeight / rowGap + 2; row += 1) {
+        const baseY = row * rowGap;
+        const rowPhase = row * 0.77;
+        const waveLift = Math.sin(time * 0.58 + rowPhase) * (6 + wind.energy * 15);
+
+        for (let col = -1; col < canvasWidth / columnGap + 2; col += 1) {
+          const seed = row * 17.13 + col * 31.7;
+          const shimmer = Math.sin(time * (1.35 + (seed % 5) * 0.12) + seed);
+          if (shimmer < 0.04 - wind.energy * 0.42) continue;
+
+          const x = col * columnGap
+            + Math.sin(time * 0.36 + seed) * 44
+            + (drift % columnGap)
+            - columnGap;
+          const y = baseY
+            + waveLift
+            + Math.sin((x + drift) * 0.009 + rowPhase) * (9 + wind.energy * 13);
+          const length = 32 + wind.energy * 62 + Math.max(0, shimmer) * 28;
+          const alpha = (0.028 + Math.max(0, shimmer) * 0.07) * (0.8 + wind.energy * 1.2);
+          const tilt = Math.max(-0.55, Math.min(0.55, wind.y * 0.42));
+          const gradient = context.createLinearGradient(x - length / 2, y, x + length / 2, y + tilt * length);
+          gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+          gradient.addColorStop(0.46, `rgba(255, 255, 255, ${alpha})`);
+          gradient.addColorStop(0.58, `rgba(142, 234, 244, ${alpha * 0.32})`);
+          gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+          context.beginPath();
+          context.moveTo(x - length / 2, y);
+          context.quadraticCurveTo(x, y + tilt * length * 0.34, x + length / 2, y + tilt * length);
+          context.strokeStyle = gradient;
+          context.lineWidth = 1.35 + wind.energy * 1.4;
+          context.stroke();
+        }
+      }
+
+      context.globalCompositeOperation = "source-over";
+      window.requestAnimationFrame(drawLakeFrame);
+      return;
+    }
+
     const water = context.createLinearGradient(0, 0, canvasWidth, canvasHeight);
     water.addColorStop(0, "rgba(214, 238, 255, 0.5)");
     water.addColorStop(0.38, "rgba(172, 224, 225, 0.44)");
