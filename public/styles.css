@@ -44,9 +44,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at var(--pointer-x) calc(var(--pointer-y) + var(--scroll-shift)), rgba(10, 132, 255, 0.28), transparent 32vw),
-    radial-gradient(ellipse at calc(100% - var(--pointer-x)) 12%, rgba(52, 199, 89, 0.18), transparent 34vw),
-    radial-gradient(ellipse at 72% calc(74% - var(--scroll-shift)), rgba(255, 159, 10, 0.16), transparent 32vw),
+    radial-gradient(ellipse at var(--pointer-x) calc(var(--pointer-y) + var(--scroll-shift)), rgba(10, 132, 255, 0.14), transparent 46vw),
+    radial-gradient(ellipse at calc(100% - var(--pointer-x)) 14%, rgba(52, 199, 89, 0.11), transparent 44vw),
+    radial-gradient(ellipse at 72% calc(74% - var(--scroll-shift)), rgba(255, 159, 10, 0.1), transparent 42vw),
     linear-gradient(120deg, rgba(255, 255, 255, 0.34), rgba(10, 132, 255, 0.06), rgba(52, 199, 89, 0.07), rgba(255, 159, 10, 0.06)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(244, 247, 251, 0.72) 360px),
     var(--bg);
@@ -78,10 +78,10 @@ body::after {
   z-index: -1;
   pointer-events: none;
   background:
-    conic-gradient(from var(--glow-rotate) at 50% 50%, rgba(10, 132, 255, 0.12), rgba(52, 199, 89, 0.1), rgba(255, 159, 10, 0.1), rgba(191, 90, 242, 0.08), rgba(10, 132, 255, 0.12)),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%, rgba(10, 132, 255, 0.08));
-  filter: blur(44px) saturate(130%);
-  opacity: 0.78;
+    conic-gradient(from var(--glow-rotate) at 50% 50%, rgba(10, 132, 255, 0.08), rgba(52, 199, 89, 0.075), rgba(255, 159, 10, 0.07), rgba(191, 90, 242, 0.05), rgba(10, 132, 255, 0.08)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.3), transparent 48%, rgba(10, 132, 255, 0.045));
+  filter: blur(64px) saturate(118%);
+  opacity: 0.62;
   transform: translate3d(var(--glow-drift-x), var(--glow-drift-y), 0) rotate(var(--glow-rotate));
   transition: opacity 200ms ease;
   content: "";

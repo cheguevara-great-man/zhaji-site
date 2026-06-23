@@ -11,11 +11,14 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").match
 if (!reduceMotion) {
   const root = document.documentElement;
   const pointer = { x: 50, y: 18 };
+  const targetPointer = { x: 50, y: 18 };
   let scrollY = window.scrollY;
   let scheduled = false;
 
   function updateAmbientBackground() {
     scheduled = false;
+    pointer.x += (targetPointer.x - pointer.x) * 0.08;
+    pointer.y += (targetPointer.y - pointer.y) * 0.08;
     const shift = Math.max(-120, Math.min(160, scrollY * 0.08));
     root.style.setProperty("--pointer-x", `${pointer.x}%`);
     root.style.setProperty("--pointer-y", `${pointer.y}%`);
@@ -23,6 +26,9 @@ if (!reduceMotion) {
     root.style.setProperty("--glow-rotate", `${scrollY * 0.018}deg`);
     root.style.setProperty("--glow-drift-x", `${(pointer.x - 50) * 0.9}px`);
     root.style.setProperty("--glow-drift-y", `${(pointer.y - 50) * 0.7}px`);
+    if (Math.abs(targetPointer.x - pointer.x) > 0.08 || Math.abs(targetPointer.y - pointer.y) > 0.08) {
+      scheduleAmbientUpdate();
+    }
   }
 
   function scheduleAmbientUpdate() {
@@ -32,8 +38,8 @@ if (!reduceMotion) {
   }
 
   window.addEventListener("pointermove", (event) => {
-    pointer.x = (event.clientX / window.innerWidth) * 100;
-    pointer.y = (event.clientY / window.innerHeight) * 100;
+    targetPointer.x = 42 + ((event.clientX / window.innerWidth) - 0.5) * 22;
+    targetPointer.y = 24 + ((event.clientY / window.innerHeight) - 0.5) * 18;
     scheduleAmbientUpdate();
   }, { passive: true });
 
