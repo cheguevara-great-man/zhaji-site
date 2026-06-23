@@ -46,71 +46,123 @@ if (!reduceMotion) {
     wind.energy += (targetWind.energy - wind.energy) * 0.055;
     targetWind.energy *= 0.986;
 
-    const speed = 0.8 + wind.energy * 2.1;
-    const tilt = Math.max(-0.42, Math.min(0.42, wind.y * 0.38));
-    const drift = time * (28 + wind.x * 20) * speed;
-    const rowGap = Math.max(18, Math.min(30, canvasHeight / 34));
-    const columnGap = Math.max(58, Math.min(98, canvasWidth / 15));
+    const speed = 0.72 + wind.energy * 2.5;
+    const windLift = Math.max(-0.5, Math.min(0.5, wind.y));
+    const drift = time * (34 + wind.x * 24) * speed;
+    const water = context.createLinearGradient(0, 0, canvasWidth, canvasHeight);
+    water.addColorStop(0, "rgba(214, 238, 255, 0.5)");
+    water.addColorStop(0.38, "rgba(172, 224, 225, 0.44)");
+    water.addColorStop(0.72, "rgba(226, 242, 213, 0.34)");
+    water.addColorStop(1, "rgba(248, 243, 220, 0.26)");
+    context.fillStyle = water;
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
 
+    const glowA = context.createRadialGradient(canvasWidth * 0.28, canvasHeight * 0.24, 0, canvasWidth * 0.28, canvasHeight * 0.24, canvasWidth * 0.62);
+    glowA.addColorStop(0, "rgba(98, 190, 226, 0.2)");
+    glowA.addColorStop(0.62, "rgba(98, 190, 226, 0.07)");
+    glowA.addColorStop(1, "rgba(98, 190, 226, 0)");
+    context.fillStyle = glowA;
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    const glowB = context.createRadialGradient(canvasWidth * 0.78, canvasHeight * 0.5, 0, canvasWidth * 0.78, canvasHeight * 0.5, canvasWidth * 0.56);
+    glowB.addColorStop(0, "rgba(105, 201, 164, 0.16)");
+    glowB.addColorStop(0.64, "rgba(105, 201, 164, 0.06)");
+    glowB.addColorStop(1, "rgba(105, 201, 164, 0)");
+    context.fillStyle = glowB;
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    context.filter = "blur(13px)";
+    context.globalCompositeOperation = "multiply";
+    for (let band = 0; band < 9; band += 1) {
+      const phase = band * 1.19;
+      const bandY = canvasHeight * (-0.08 + band * 0.145)
+        + Math.sin(time * 0.42 + phase) * 28
+        + windLift * 34;
+      const bandHeight = 70 + Math.sin(phase) * 18 + wind.energy * 28;
+
+      context.beginPath();
+      context.moveTo(-120, bandY);
+      for (let x = -120; x <= canvasWidth + 140; x += 95) {
+        const y = bandY
+          + Math.sin((x + drift * 1.25) * 0.006 + phase) * (32 + wind.energy * 24)
+          + Math.sin((x - drift * 0.68) * 0.013 - phase) * 12;
+        context.lineTo(x, y);
+      }
+      for (let x = canvasWidth + 140; x >= -120; x -= 95) {
+        const y = bandY + bandHeight
+          + Math.sin((x + drift * 0.9) * 0.006 + phase + 1.8) * (34 + wind.energy * 22)
+          + Math.sin((x - drift * 0.55) * 0.014 - phase) * 10;
+        context.lineTo(x, y);
+      }
+      context.closePath();
+      context.fillStyle = band % 2 === 0
+        ? `rgba(38, 126, 154, ${0.055 + wind.energy * 0.025})`
+        : `rgba(46, 156, 126, ${0.04 + wind.energy * 0.022})`;
+      context.fill();
+    }
+
+    context.filter = "blur(7px)";
+    context.globalCompositeOperation = "screen";
+    for (let band = 0; band < 11; band += 1) {
+      const phase = band * 0.83 + 1.7;
+      const bandY = canvasHeight * (0.02 + band * 0.105)
+        + Math.cos(time * 0.48 + phase) * 20
+        - windLift * 22;
+      const highlight = context.createLinearGradient(0, bandY - 36, canvasWidth, bandY + 36);
+      highlight.addColorStop(0, "rgba(255, 255, 255, 0)");
+      highlight.addColorStop(0.52, `rgba(255, 255, 255, ${0.08 + wind.energy * 0.08})`);
+      highlight.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+      context.beginPath();
+      context.moveTo(-140, bandY);
+      for (let x = -140; x <= canvasWidth + 160; x += 82) {
+        const y = bandY
+          + Math.sin((x + drift * 1.55) * 0.008 + phase) * (20 + wind.energy * 25)
+          + Math.sin((x - drift * 0.9) * 0.021 + phase * 0.7) * 7;
+        context.lineTo(x, y);
+      }
+      context.strokeStyle = highlight;
+      context.lineWidth = 18 + wind.energy * 18;
+      context.stroke();
+    }
+
+    context.filter = "none";
+    context.globalCompositeOperation = "screen";
+    const rowGap = Math.max(21, Math.min(36, canvasHeight / 28));
+    const columnGap = Math.max(74, Math.min(128, canvasWidth / 13));
     for (let row = -1; row < canvasHeight / rowGap + 2; row += 1) {
       const baseY = row * rowGap;
       const rowPhase = row * 0.77;
-      const waveLift = Math.sin(time * 0.58 + rowPhase) * (6 + wind.energy * 14);
-
-      context.beginPath();
-      for (let x = -80; x <= canvasWidth + 80; x += 26) {
-        const y = baseY
-          + waveLift
-          + Math.sin((x + drift) * 0.009 + rowPhase) * (7 + wind.energy * 9)
-          + Math.sin((x - drift * 0.62) * 0.017 - rowPhase) * 3;
-        if (x === -80) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      }
-      context.strokeStyle = `rgba(27, 107, 128, ${0.026 + wind.energy * 0.05})`;
-      context.lineWidth = 0.8 + wind.energy * 0.35;
-      context.stroke();
+      const waveLift = Math.sin(time * 0.58 + rowPhase) * (6 + wind.energy * 15);
 
       for (let col = -1; col < canvasWidth / columnGap + 2; col += 1) {
         const seed = row * 17.13 + col * 31.7;
-        const shimmer = Math.sin(time * (1.4 + (seed % 5) * 0.11) + seed);
-        if (shimmer < 0.18 - wind.energy * 0.38) continue;
+        const shimmer = Math.sin(time * (1.35 + (seed % 5) * 0.12) + seed);
+        if (shimmer < 0.04 - wind.energy * 0.42) continue;
 
         const x = col * columnGap
-          + Math.sin(time * 0.36 + seed) * 34
+          + Math.sin(time * 0.36 + seed) * 44
           + (drift % columnGap)
           - columnGap;
         const y = baseY
           + waveLift
-          + Math.sin((x + drift) * 0.009 + rowPhase) * (7 + wind.energy * 9);
-        const length = 18 + wind.energy * 48 + Math.max(0, shimmer) * 20;
-        const alpha = (0.018 + Math.max(0, shimmer) * 0.055) * (0.75 + wind.energy * 1.15);
-
+          + Math.sin((x + drift) * 0.009 + rowPhase) * (9 + wind.energy * 13);
+        const length = 32 + wind.energy * 62 + Math.max(0, shimmer) * 28;
+        const alpha = (0.028 + Math.max(0, shimmer) * 0.07) * (0.8 + wind.energy * 1.2);
+        const tilt = Math.max(-0.55, Math.min(0.55, wind.y * 0.42));
         const gradient = context.createLinearGradient(x - length / 2, y, x + length / 2, y + tilt * length);
         gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
-        gradient.addColorStop(0.32, `rgba(31, 132, 150, ${alpha * 0.22})`);
-        gradient.addColorStop(0.52, `rgba(255, 255, 255, ${alpha})`);
-        gradient.addColorStop(0.7, `rgba(18, 100, 124, ${alpha * 0.18})`);
+        gradient.addColorStop(0.46, `rgba(255, 255, 255, ${alpha})`);
+        gradient.addColorStop(0.58, `rgba(142, 234, 244, ${alpha * 0.32})`);
         gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
 
         context.beginPath();
         context.moveTo(x - length / 2, y);
         context.quadraticCurveTo(x, y + tilt * length * 0.34, x + length / 2, y + tilt * length);
         context.strokeStyle = gradient;
-        context.lineWidth = 0.9 + wind.energy * 0.75;
+        context.lineWidth = 1.35 + wind.energy * 1.4;
         context.stroke();
       }
-    }
-
-    if (wind.energy > 0.08) {
-      const sheen = context.createLinearGradient(0, canvasHeight * 0.18, canvasWidth, canvasHeight * 0.72);
-      sheen.addColorStop(0, "rgba(255, 255, 255, 0)");
-      sheen.addColorStop(0.45, `rgba(255, 255, 255, ${wind.energy * 0.06})`);
-      sheen.addColorStop(0.62, `rgba(26, 113, 137, ${wind.energy * 0.026})`);
-      sheen.addColorStop(1, "rgba(255, 255, 255, 0)");
-      context.beginPath();
-      context.rect(0, 0, canvasWidth, canvasHeight);
-      context.fillStyle = sheen;
-      context.fill();
     }
 
     context.globalCompositeOperation = "source-over";
