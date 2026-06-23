@@ -6,6 +6,45 @@ document.addEventListener("submit", (event) => {
   }
 });
 
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+if (!reduceMotion) {
+  const root = document.documentElement;
+  const pointer = { x: 50, y: 18 };
+  let scrollY = window.scrollY;
+  let scheduled = false;
+
+  function updateAmbientBackground() {
+    scheduled = false;
+    const shift = Math.max(-120, Math.min(160, scrollY * 0.08));
+    root.style.setProperty("--pointer-x", `${pointer.x}%`);
+    root.style.setProperty("--pointer-y", `${pointer.y}%`);
+    root.style.setProperty("--scroll-shift", `${shift}px`);
+    root.style.setProperty("--glow-rotate", `${scrollY * 0.018}deg`);
+    root.style.setProperty("--glow-drift-x", `${(pointer.x - 50) * 0.9}px`);
+    root.style.setProperty("--glow-drift-y", `${(pointer.y - 50) * 0.7}px`);
+  }
+
+  function scheduleAmbientUpdate() {
+    if (scheduled) return;
+    scheduled = true;
+    window.requestAnimationFrame(updateAmbientBackground);
+  }
+
+  window.addEventListener("pointermove", (event) => {
+    pointer.x = (event.clientX / window.innerWidth) * 100;
+    pointer.y = (event.clientY / window.innerHeight) * 100;
+    scheduleAmbientUpdate();
+  }, { passive: true });
+
+  window.addEventListener("scroll", () => {
+    scrollY = window.scrollY;
+    scheduleAmbientUpdate();
+  }, { passive: true });
+
+  updateAmbientBackground();
+}
+
 const feed = document.querySelector("[data-feed]");
 const sentinel = document.querySelector("[data-feed-sentinel]");
 

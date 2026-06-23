@@ -23,6 +23,12 @@
   --shadow-hover: 0 28px 80px rgba(30, 41, 59, 0.18);
   --content-width: 1120px;
   --reading-width: 780px;
+  --pointer-x: 50%;
+  --pointer-y: 18%;
+  --scroll-shift: 0px;
+  --glow-rotate: 0deg;
+  --glow-drift-x: 0px;
+  --glow-drift-y: 0px;
 }
 
 * {
@@ -34,12 +40,14 @@ html {
 }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% -8%, rgba(10, 132, 255, 0.22), transparent 34vw),
-    radial-gradient(circle at 88% 8%, rgba(52, 199, 89, 0.14), transparent 30vw),
-    radial-gradient(circle at 76% 76%, rgba(255, 159, 10, 0.12), transparent 30vw),
+    radial-gradient(circle at var(--pointer-x) calc(var(--pointer-y) + var(--scroll-shift)), rgba(10, 132, 255, 0.28), transparent 32vw),
+    radial-gradient(ellipse at calc(100% - var(--pointer-x)) 12%, rgba(52, 199, 89, 0.18), transparent 34vw),
+    radial-gradient(ellipse at 72% calc(74% - var(--scroll-shift)), rgba(255, 159, 10, 0.16), transparent 32vw),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.34), rgba(10, 132, 255, 0.06), rgba(52, 199, 89, 0.07), rgba(255, 159, 10, 0.06)),
     linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(244, 247, 251, 0.72) 360px),
     var(--bg);
   background-attachment: fixed;
@@ -47,6 +55,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   line-height: 1.68;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  isolation: isolate;
 }
 
 body::before {
@@ -59,6 +69,21 @@ body::before {
     linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.48), transparent 72%);
+  content: "";
+}
+
+body::after {
+  position: fixed;
+  inset: -24vmax;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    conic-gradient(from var(--glow-rotate) at 50% 50%, rgba(10, 132, 255, 0.12), rgba(52, 199, 89, 0.1), rgba(255, 159, 10, 0.1), rgba(191, 90, 242, 0.08), rgba(10, 132, 255, 0.12)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%, rgba(10, 132, 255, 0.08));
+  filter: blur(44px) saturate(130%);
+  opacity: 0.78;
+  transform: translate3d(var(--glow-drift-x), var(--glow-drift-y), 0) rotate(var(--glow-rotate));
+  transition: opacity 200ms ease;
   content: "";
 }
 
@@ -245,7 +270,12 @@ dl {
 
 .hero h1 {
   max-width: none;
+  background: linear-gradient(100deg, var(--ink) 8%, #0a84ff 44%, #111827 72%, #ff9f0a 108%);
+  background-clip: text;
   font-size: clamp(38px, 5vw, 60px);
+  text-fill-color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   white-space: nowrap;
 }
 
@@ -358,6 +388,17 @@ dl {
   content: "";
 }
 
+.article-card::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.22) 36%, rgba(255, 255, 255, 0.58) 50%, rgba(255, 255, 255, 0.16) 62%, transparent 100%);
+  opacity: 0;
+  transform: translateX(-62%);
+  transition: opacity 220ms ease, transform 700ms ease;
+  pointer-events: none;
+  content: "";
+}
+
 .article-card:hover,
 .archive-row:hover,
 .search-result:hover {
@@ -365,6 +406,11 @@ dl {
   background: var(--glass-strong);
   box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
+}
+
+.article-card:hover::after {
+  opacity: 1;
+  transform: translateX(62%);
 }
 
 time,
@@ -1006,5 +1052,21 @@ code {
 
   .prose {
     font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after,
+  .article-card::after {
+    display: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
