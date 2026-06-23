@@ -16,16 +16,16 @@ if (!reduceMotion) {
   let scheduled = false;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: true });
-  const ripples = [];
   let canvasWidth = 0;
   let canvasHeight = 0;
   let pixelRatio = 1;
-  let lastRippleAt = 0;
+  const wind = { x: 1, y: 0, energy: 0 };
+  const targetWind = { x: 1, y: 0, energy: 0 };
 
-  canvas.className = "ambient-ripple-canvas";
+  canvas.className = "ambient-lake-canvas";
   document.body.prepend(canvas);
 
-  function resizeRippleCanvas() {
+  function resizeLakeCanvas() {
     pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     canvasWidth = window.innerWidth;
     canvasHeight = window.innerHeight;
@@ -36,66 +36,85 @@ if (!reduceMotion) {
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   }
 
-  function addRipple(x, y, strength = 1) {
-    ripples.push({
-      x,
-      y,
-      age: 0,
-      radius: 10,
-      strength: Math.min(Math.max(strength, 0.55), 1.45)
-    });
-    if (ripples.length > 18) ripples.shift();
-  }
-
-  function drawRippleFrame(now) {
+  function drawLakeFrame(now) {
     context.clearRect(0, 0, canvasWidth, canvasHeight);
-    context.globalCompositeOperation = "screen";
+    context.globalCompositeOperation = "source-over";
 
     const time = now * 0.001;
-    for (let line = 0; line < 5; line += 1) {
-      const baseY = canvasHeight * (0.18 + line * 0.18);
+    wind.x += (targetWind.x - wind.x) * 0.035;
+    wind.y += (targetWind.y - wind.y) * 0.035;
+    wind.energy += (targetWind.energy - wind.energy) * 0.055;
+    targetWind.energy *= 0.986;
+
+    const speed = 0.8 + wind.energy * 2.1;
+    const tilt = Math.max(-0.42, Math.min(0.42, wind.y * 0.38));
+    const drift = time * (28 + wind.x * 20) * speed;
+    const rowGap = Math.max(18, Math.min(30, canvasHeight / 34));
+    const columnGap = Math.max(58, Math.min(98, canvasWidth / 15));
+
+    for (let row = -1; row < canvasHeight / rowGap + 2; row += 1) {
+      const baseY = row * rowGap;
+      const rowPhase = row * 0.77;
+      const waveLift = Math.sin(time * 0.58 + rowPhase) * (6 + wind.energy * 14);
+
       context.beginPath();
-      for (let x = -40; x <= canvasWidth + 40; x += 28) {
+      for (let x = -80; x <= canvasWidth + 80; x += 26) {
         const y = baseY
-          + Math.sin(x * 0.008 + time * 0.82 + line * 1.4) * 11
-          + Math.sin(x * 0.015 - time * 0.48) * 5;
-        if (x === -40) context.moveTo(x, y);
+          + waveLift
+          + Math.sin((x + drift) * 0.009 + rowPhase) * (7 + wind.energy * 9)
+          + Math.sin((x - drift * 0.62) * 0.017 - rowPhase) * 3;
+        if (x === -80) context.moveTo(x, y);
         else context.lineTo(x, y);
       }
-      context.strokeStyle = `rgba(255, 255, 255, ${0.022 + line * 0.004})`;
-      context.lineWidth = 1;
+      context.strokeStyle = `rgba(27, 107, 128, ${0.026 + wind.energy * 0.05})`;
+      context.lineWidth = 0.8 + wind.energy * 0.35;
       context.stroke();
+
+      for (let col = -1; col < canvasWidth / columnGap + 2; col += 1) {
+        const seed = row * 17.13 + col * 31.7;
+        const shimmer = Math.sin(time * (1.4 + (seed % 5) * 0.11) + seed);
+        if (shimmer < 0.18 - wind.energy * 0.38) continue;
+
+        const x = col * columnGap
+          + Math.sin(time * 0.36 + seed) * 34
+          + (drift % columnGap)
+          - columnGap;
+        const y = baseY
+          + waveLift
+          + Math.sin((x + drift) * 0.009 + rowPhase) * (7 + wind.energy * 9);
+        const length = 18 + wind.energy * 48 + Math.max(0, shimmer) * 20;
+        const alpha = (0.018 + Math.max(0, shimmer) * 0.055) * (0.75 + wind.energy * 1.15);
+
+        const gradient = context.createLinearGradient(x - length / 2, y, x + length / 2, y + tilt * length);
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+        gradient.addColorStop(0.32, `rgba(31, 132, 150, ${alpha * 0.22})`);
+        gradient.addColorStop(0.52, `rgba(255, 255, 255, ${alpha})`);
+        gradient.addColorStop(0.7, `rgba(18, 100, 124, ${alpha * 0.18})`);
+        gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+        context.beginPath();
+        context.moveTo(x - length / 2, y);
+        context.quadraticCurveTo(x, y + tilt * length * 0.34, x + length / 2, y + tilt * length);
+        context.strokeStyle = gradient;
+        context.lineWidth = 0.9 + wind.energy * 0.75;
+        context.stroke();
+      }
     }
 
-    for (let index = ripples.length - 1; index >= 0; index -= 1) {
-      const ripple = ripples[index];
-      ripple.age += 1;
-      ripple.radius += 3.2 + ripple.strength * 1.6;
-      const opacity = Math.max(0, 1 - ripple.age / 90) * 0.16 * ripple.strength;
-      if (opacity <= 0.004) {
-        ripples.splice(index, 1);
-        continue;
-      }
-
-      const gradient = context.createRadialGradient(ripple.x, ripple.y, Math.max(0, ripple.radius - 18), ripple.x, ripple.y, ripple.radius + 28);
-      gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
-      gradient.addColorStop(0.46, `rgba(255, 255, 255, ${opacity})`);
-      gradient.addColorStop(0.64, `rgba(10, 132, 255, ${opacity * 0.38})`);
-      gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    if (wind.energy > 0.08) {
+      const sheen = context.createLinearGradient(0, canvasHeight * 0.18, canvasWidth, canvasHeight * 0.72);
+      sheen.addColorStop(0, "rgba(255, 255, 255, 0)");
+      sheen.addColorStop(0.45, `rgba(255, 255, 255, ${wind.energy * 0.06})`);
+      sheen.addColorStop(0.62, `rgba(26, 113, 137, ${wind.energy * 0.026})`);
+      sheen.addColorStop(1, "rgba(255, 255, 255, 0)");
       context.beginPath();
-      context.arc(ripple.x, ripple.y, ripple.radius + 28, 0, Math.PI * 2);
-      context.fillStyle = gradient;
+      context.rect(0, 0, canvasWidth, canvasHeight);
+      context.fillStyle = sheen;
       context.fill();
-
-      context.beginPath();
-      context.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
-      context.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.92})`;
-      context.lineWidth = 1;
-      context.stroke();
     }
 
     context.globalCompositeOperation = "source-over";
-    window.requestAnimationFrame(drawRippleFrame);
+    window.requestAnimationFrame(drawLakeFrame);
   }
 
   function updateAmbientBackground() {
@@ -123,11 +142,11 @@ if (!reduceMotion) {
   window.addEventListener("pointermove", (event) => {
     targetPointer.x = 42 + ((event.clientX / window.innerWidth) - 0.5) * 22;
     targetPointer.y = 24 + ((event.clientY / window.innerHeight) - 0.5) * 18;
-    const now = window.performance.now();
-    if (now - lastRippleAt > 70) {
-      const movement = Math.hypot(event.movementX || 0, event.movementY || 0);
-      addRipple(event.clientX, event.clientY, 0.65 + movement / 46);
-      lastRippleAt = now;
+    const movement = Math.hypot(event.movementX || 0, event.movementY || 0);
+    if (movement > 0) {
+      targetWind.x = (event.movementX || 0) / movement;
+      targetWind.y = (event.movementY || 0) / movement;
+      targetWind.energy = Math.min(1, Math.max(targetWind.energy, movement / 34));
     }
     scheduleAmbientUpdate();
   }, { passive: true });
@@ -137,11 +156,11 @@ if (!reduceMotion) {
     scheduleAmbientUpdate();
   }, { passive: true });
 
-  window.addEventListener("resize", resizeRippleCanvas, { passive: true });
+  window.addEventListener("resize", resizeLakeCanvas, { passive: true });
 
-  resizeRippleCanvas();
+  resizeLakeCanvas();
   updateAmbientBackground();
-  window.requestAnimationFrame(drawRippleFrame);
+  window.requestAnimationFrame(drawLakeFrame);
 }
 
 const feed = document.querySelector("[data-feed]");
