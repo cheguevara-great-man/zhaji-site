@@ -102,7 +102,7 @@ export function layout({ title, user, body, active = "" }) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" href="/public/styles.css">
-  <script defer src="/public/app.js"></script>
+  <script type="module" src="/public/app.js"></script>
 </head>
 <body>
   <header class="site-header">

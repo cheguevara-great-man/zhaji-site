@@ -87,6 +87,7 @@ body::after {
   content: "";
 }
 
+.three-water-canvas,
 .ambient-water-canvas,
 .ambient-lake-canvas {
   position: fixed;
@@ -97,14 +98,23 @@ body::after {
   pointer-events: none;
 }
 
+.three-water-canvas {
+  opacity: 0.82;
+  mix-blend-mode: normal;
+}
+
 .ambient-water-canvas {
-  opacity: 0.9;
+  opacity: 1;
   mix-blend-mode: normal;
 }
 
 .ambient-lake-canvas {
-  opacity: 0.88;
+  opacity: 0.42;
   mix-blend-mode: normal;
+}
+
+.three-water-ready .ambient-water-canvas {
+  display: none;
 }
 
 a {
@@ -1063,6 +1073,7 @@ code {
 
 @media (prefers-reduced-motion: reduce) {
   body::after,
+  .three-water-canvas,
   .ambient-water-canvas,
   .ambient-lake-canvas {
     display: none;

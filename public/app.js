@@ -1,3 +1,6 @@
+import * as THREE from "./vendor/three/three.module.js";
+import { Water } from "./vendor/three/Water.js";
+
 document.addEventListener("submit", (event) => {
   const form = event.target;
   const message = form.getAttribute("data-confirm");
@@ -14,6 +17,7 @@ if (!reduceMotion) {
   const targetPointer = { x: 50, y: 18 };
   let scrollY = window.scrollY;
   let scheduled = false;
+  const threeCanvas = document.createElement("canvas");
   const waterCanvas = document.createElement("canvas");
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: true });
@@ -33,10 +37,12 @@ if (!reduceMotion) {
     { x: 0.39, y: 0.54, scale: 0.42, speed: 0.022, phase: 4.1, kind: "shrimp" }
   ];
 
+  threeCanvas.className = "three-water-canvas";
   waterCanvas.className = "ambient-water-canvas";
   canvas.className = "ambient-lake-canvas";
   document.body.prepend(canvas);
   document.body.prepend(waterCanvas);
+  document.body.prepend(threeCanvas);
 
   function resizeLakeCanvas() {
     pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -46,12 +52,106 @@ if (!reduceMotion) {
     waterCanvas.height = Math.round(canvasHeight * pixelRatio);
     waterCanvas.style.width = `${canvasWidth}px`;
     waterCanvas.style.height = `${canvasHeight}px`;
+    threeCanvas.width = Math.round(canvasWidth * pixelRatio);
+    threeCanvas.height = Math.round(canvasHeight * pixelRatio);
+    threeCanvas.style.width = `${canvasWidth}px`;
+    threeCanvas.style.height = `${canvasHeight}px`;
     canvas.width = Math.round(canvasWidth * pixelRatio);
     canvas.height = Math.round(canvasHeight * pixelRatio);
     canvas.style.width = `${canvasWidth}px`;
     canvas.style.height = `${canvasHeight}px`;
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    threeLake?.resize();
     webglLake?.resize();
+  }
+
+  function createThreeLake() {
+    try {
+      const renderer = new THREE.WebGLRenderer({
+        canvas: threeCanvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance"
+      });
+      renderer.setPixelRatio(pixelRatio);
+      renderer.setClearColor(0x000000, 0);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xdff6f4);
+
+      const camera = new THREE.PerspectiveCamera(44, 1, 1, 24000);
+      const sun = new THREE.Vector3(-0.55, 0.72, 0.34).normalize();
+
+      const waterGeometry = new THREE.PlaneGeometry(18000, 18000, 256, 256);
+      const waterNormals = new THREE.TextureLoader().load("/public/vendor/three/waternormals.png");
+      waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+      waterNormals.repeat.set(6, 6);
+
+      const water = new Water(waterGeometry, {
+        textureWidth: 1024,
+        textureHeight: 1024,
+        waterNormals,
+        sunDirection: sun,
+        sunColor: 0xffe1a2,
+        waterColor: 0x2f8897,
+        distortionScale: 5.8,
+        alpha: 0.86,
+        fog: false
+      });
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = -20;
+      scene.add(water);
+
+      const skyBack = new THREE.Mesh(
+        new THREE.PlaneGeometry(22000, 8000),
+        new THREE.MeshBasicMaterial({ color: 0xeaf7f2, transparent: true, opacity: 0.72 })
+      );
+      skyBack.position.set(0, 4200, -5600);
+      scene.add(skyBack);
+
+      const haze = new THREE.Mesh(
+        new THREE.PlaneGeometry(19000, 2800),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.36 })
+      );
+      haze.position.set(0, 2300, -4100);
+      scene.add(haze);
+
+      const sunPatch = new THREE.Mesh(
+        new THREE.CircleGeometry(900, 64),
+        new THREE.MeshBasicMaterial({ color: 0xfff4c8, transparent: true, opacity: 0.36 })
+      );
+      sunPatch.position.set(2400, 2500, -3900);
+      scene.add(sunPatch);
+
+      return {
+        resize() {
+          renderer.setPixelRatio(pixelRatio);
+          renderer.setSize(canvasWidth, canvasHeight, false);
+          camera.aspect = canvasWidth / Math.max(canvasHeight, 1);
+          camera.updateProjectionMatrix();
+        },
+        render(now) {
+          const time = now * 0.001;
+          water.material.uniforms.time.value = time * (0.72 + wind.energy * 0.92);
+          water.material.uniforms.distortionScale.value = 4.8 + wind.energy * 4.2;
+          water.material.uniforms.sunDirection.value.set(
+            -0.48 + wind.x * 0.18,
+            0.74,
+            0.38 + wind.y * 0.16
+          ).normalize();
+          camera.position.set(
+            (pointer.x - 50) * 9 + wind.x * 42,
+            760 + wind.energy * 64,
+            1340 - Math.min(190, scrollY * 0.05)
+          );
+          camera.lookAt((pointer.x - 50) * 10, -18, -220 - wind.energy * 120);
+          renderer.render(scene, camera);
+        }
+      };
+    } catch (error) {
+      console.warn("Three water unavailable", error);
+      return null;
+    }
   }
 
   function createShader(gl, type, source) {
@@ -124,63 +224,71 @@ if (!reduceMotion) {
 
       float waveHeight(vec2 p, vec2 wind, float t, float energy) {
         vec2 side = vec2(-wind.y, wind.x);
-        float longWave = sin(dot(p, wind) * 4.9 + t * (0.72 + energy * 1.35));
-        float crossWave = sin(dot(p, side) * 7.4 - t * (0.55 + energy * 0.92));
-        float fineWave = fbm(p * 2.75 + wind * t * (0.18 + energy * 0.28));
-        float glintWave = sin((p.x + p.y) * 18.0 + t * 1.25 + fineWave * 3.2);
-        return longWave * 0.36 + crossWave * 0.18 + fineWave * 0.58 + glintWave * 0.05;
+        float longWave = sin(dot(p, wind) * 1.9 + t * (0.64 + energy * 1.15));
+        float crossWave = sin(dot(p, side) * 4.8 - t * (0.42 + energy * 0.82));
+        float fineWave = fbm(p * 1.5 + wind * t * (0.16 + energy * 0.28));
+        float capillary = sin(dot(p, normalize(wind + side * 0.35)) * 12.0 + t * 1.6 + fineWave * 3.0);
+        return longWave * 0.42 + crossWave * 0.24 + fineWave * 0.64 + capillary * 0.09;
       }
 
       void main() {
         vec2 uv = v_uv;
         vec2 aspect = vec2(u_resolution.x / max(u_resolution.y, 1.0), 1.0);
-        vec2 p = (uv - 0.5) * aspect;
         vec2 wind = normalize(u_wind + vec2(0.001, 0.0));
         float energy = clamp(u_energy, 0.0, 1.0);
-        float t = u_time * (0.34 + energy * 0.42);
-        p += wind * t * 0.12;
-        p.y += sin(u_scroll * 0.002) * 0.015;
+        float t = u_time * (0.42 + energy * 0.5);
+        float horizon = 0.18;
+        float viewY = max(uv.y - horizon, 0.015);
+        float perspective = 1.0 / (viewY * 2.15 + 0.18);
+        vec2 p = vec2((uv.x - 0.5) * aspect.x * perspective, perspective * 0.9);
+        p += wind * t * (0.32 + energy * 0.28);
+        p.y += u_scroll * 0.00035;
 
-        float eps = 0.006;
+        float eps = mix(0.004, 0.018, smoothstep(0.0, 1.0, uv.y));
         float h = waveHeight(p, wind, t, energy);
         float hx = waveHeight(p + vec2(eps, 0.0), wind, t, energy);
         float hy = waveHeight(p + vec2(0.0, eps), wind, t, energy);
-        vec3 normal = normalize(vec3((h - hx) * 4.2, (h - hy) * 4.2, 1.0));
+        vec3 normal = normalize(vec3((h - hx) * 8.5, (h - hy) * 8.5, 1.0));
 
-        vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
-        vec3 lightDir = normalize(vec3(-0.32, 0.5, 0.8));
+        vec3 viewDir = normalize(vec3(0.0, -0.22, 1.0));
+        vec3 lightDir = normalize(vec3(-0.48, 0.34, 0.82));
         vec3 halfDir = normalize(lightDir + viewDir);
         float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
-        float specular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 92.0) * (0.2 + energy * 0.46);
-        float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.0);
+        float specular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 52.0) * (0.38 + energy * 0.72);
+        float sharpSpecular = pow(clamp(dot(normal, halfDir), 0.0, 1.0), 170.0) * (0.28 + energy * 0.62);
+        float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 1.65);
 
-        vec3 deep = vec3(0.39, 0.67, 0.76);
-        vec3 shallow = vec3(0.72, 0.89, 0.82);
-        vec3 sky = vec3(0.92, 0.97, 0.98);
-        vec3 sun = vec3(1.0, 0.95, 0.78);
-        float depth = smoothstep(-0.7, 0.85, p.y + h * 0.08);
-        vec3 color = mix(deep, shallow, depth);
-        color = mix(color, sky, fresnel * 0.32);
-        color *= 0.89 + h * 0.07 + diffuse * 0.2;
-        color += specular * sun * 1.05;
+        vec3 nearWater = vec3(0.13, 0.52, 0.66);
+        vec3 midWater = vec3(0.35, 0.74, 0.78);
+        vec3 farWater = vec3(0.78, 0.93, 0.91);
+        vec3 sky = vec3(0.93, 0.97, 0.99);
+        vec3 sun = vec3(1.0, 0.91, 0.58);
+        float near = smoothstep(0.18, 1.0, uv.y);
+        float far = 1.0 - near;
+        vec3 color = mix(farWater, midWater, near);
+        color = mix(color, nearWater, smoothstep(0.72, 1.0, uv.y) * 0.32);
+        color = mix(color, sky, fresnel * (0.32 + far * 0.28));
 
-        float softNoise = fbm(p * 1.65 + wind * t * 0.42);
-        color = mix(color, vec3(0.95, 0.98, 0.96), softNoise * 0.1);
+        float cloudReflection = fbm(vec2(p.x * 0.42, p.y * 0.18) + vec2(t * 0.06, -t * 0.04));
+        color = mix(color, vec3(0.98, 0.99, 0.96), smoothstep(0.54, 0.86, cloudReflection) * (0.22 + far * 0.18));
 
-        float rippleBands = sin(dot(p, wind) * 15.0 + t * 2.25 + fbm(p * 3.0) * 2.2);
-        float lightBands = smoothstep(0.62, 0.98, rippleBands);
-        float darkBands = smoothstep(-0.15, -0.94, rippleBands);
-        color += lightBands * vec3(0.46, 0.7, 0.68) * (0.052 + energy * 0.042);
-        color -= darkBands * vec3(0.08, 0.13, 0.13) * 0.055;
+        float longBands = sin(p.y * 3.2 + p.x * 0.42 + t * 0.8 + h * 0.24);
+        float longHighlights = smoothstep(0.62, 0.98, longBands);
+        float darkTroughs = smoothstep(-0.25, -0.92, longBands);
+        color += longHighlights * vec3(0.22, 0.48, 0.45) * (0.12 + energy * 0.08);
+        color -= darkTroughs * vec3(0.06, 0.16, 0.18) * (0.1 + near * 0.06);
 
-        float sparkle = smoothstep(0.965, 1.0, lightBands * noise(p * 76.0 + t));
-        color += sparkle * sun * (0.22 + energy * 0.24);
+        float ripple = sin(dot(p, wind) * 9.5 + t * 2.1 + fbm(p * 1.8) * 2.4);
+        float rippleLight = smoothstep(0.74, 0.99, ripple);
+        color += rippleLight * vec3(0.36, 0.68, 0.66) * (0.08 + energy * 0.08) * (0.45 + near);
 
-        float broadReflection = smoothstep(0.72, 1.0, sin((p.x * 2.6 - p.y * 4.1) + t * 0.7 + h * 0.25));
-        color += broadReflection * vec3(0.18, 0.28, 0.25) * 0.055;
+        float sunPath = exp(-abs((uv.x - 0.55) * 6.8 + sin(uv.y * 8.0 + t) * 0.18)) * smoothstep(0.05, 0.85, uv.y);
+        float sparkle = smoothstep(0.94, 1.0, rippleLight * noise(p * 44.0 + t * 1.3));
+        color += (specular * 1.4 + sharpSpecular + sparkle * 0.36) * sun * sunPath;
+        color += diffuse * vec3(0.04, 0.11, 0.1);
 
-        float vignette = smoothstep(0.92, 0.08, distance(uv, vec2(0.52, 0.46)));
-        float alpha = 0.68 * vignette + 0.1;
+        float vignette = smoothstep(1.05, 0.1, distance(uv, vec2(0.52, 0.52)));
+        float alpha = (0.8 * vignette + 0.16) * smoothstep(0.0, 0.18, uv.y);
         gl_FragColor = vec4(color, alpha);
       }
     `;
@@ -243,7 +351,8 @@ if (!reduceMotion) {
     };
   }
 
-  const webglLake = createWebglLake();
+  const threeLake = createThreeLake();
+  const webglLake = threeLake ? null : createWebglLake();
 
   function wrapCanvasX(value, margin) {
     const span = canvasWidth + margin * 2;
@@ -355,6 +464,61 @@ if (!reduceMotion) {
     const speed = 0.72 + wind.energy * 2.5;
     const windLift = Math.max(-0.5, Math.min(0.5, wind.y));
     const drift = time * (34 + wind.x * 24) * speed;
+
+    if (threeLake) {
+      document.body.classList.add("three-water-ready");
+      threeLake.render(now);
+      context.clearRect(0, 0, canvasWidth, canvasHeight);
+      context.filter = "none";
+      context.globalCompositeOperation = "source-over";
+      for (const life of lakeLife) {
+        drawFish(life, time, drift);
+      }
+      for (const boat of lakeBoats) {
+        drawBoat(boat, time, drift);
+      }
+
+      context.globalCompositeOperation = "screen";
+      const rowGap = Math.max(23, Math.min(42, canvasHeight / 24));
+      const columnGap = Math.max(92, Math.min(148, canvasWidth / 11));
+      for (let row = -1; row < canvasHeight / rowGap + 2; row += 1) {
+        const baseY = row * rowGap;
+        const rowPhase = row * 0.77;
+        const waveLift = Math.sin(time * 0.58 + rowPhase) * (4 + wind.energy * 11);
+
+        for (let col = -1; col < canvasWidth / columnGap + 2; col += 1) {
+          const seed = row * 17.13 + col * 31.7;
+          const shimmer = Math.sin(time * (1.25 + (seed % 5) * 0.1) + seed);
+          if (shimmer < 0.36 - wind.energy * 0.32) continue;
+
+          const x = col * columnGap
+            + Math.sin(time * 0.36 + seed) * 44
+            + (drift % columnGap)
+            - columnGap;
+          const y = baseY
+            + waveLift
+            + Math.sin((x + drift) * 0.008 + rowPhase) * (7 + wind.energy * 10);
+          const length = 34 + wind.energy * 80 + Math.max(0, shimmer) * 42;
+          const alpha = (0.02 + Math.max(0, shimmer) * 0.055) * (0.7 + wind.energy * 1.1);
+          const tilt = Math.max(-0.48, Math.min(0.48, wind.y * 0.38));
+          const gradient = context.createLinearGradient(x - length / 2, y, x + length / 2, y + tilt * length);
+          gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+          gradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha})`);
+          gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+          context.beginPath();
+          context.moveTo(x - length / 2, y);
+          context.quadraticCurveTo(x, y + tilt * length * 0.3, x + length / 2, y + tilt * length);
+          context.strokeStyle = gradient;
+          context.lineWidth = 1.1 + wind.energy * 1.1;
+          context.stroke();
+        }
+      }
+
+      context.globalCompositeOperation = "source-over";
+      window.requestAnimationFrame(drawLakeFrame);
+      return;
+    }
 
     if (webglLake) {
       webglLake.render(now);
