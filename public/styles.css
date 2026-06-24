@@ -1710,10 +1710,13 @@ html[data-theme="monument"] body {
 html[data-theme="monument"] body::after {
   background:
     radial-gradient(circle at 50% 104px, rgba(63, 20, 16, 0.32) 0 31px, rgba(173, 132, 53, 0.38) 32px 40px, rgba(245, 226, 181, 0.34) 41px 50px, transparent 51px),
-    linear-gradient(90deg, transparent calc(50% - 1px), rgba(74, 50, 31, 0.16) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
     linear-gradient(180deg, rgba(45, 34, 25, 0.24) 0 70px, rgba(255, 246, 223, 0.2) 71px 94px, transparent 95px),
     linear-gradient(90deg, rgba(49, 38, 29, 0.18) 0 11%, transparent 11% 89%, rgba(49, 38, 29, 0.18) 89% 100%),
     radial-gradient(ellipse at 50% 0%, rgba(123, 29, 22, 0.1), transparent 40%);
+}
+
+html[data-theme="monument"] .section-head {
+  border-top: 0;
 }
 
 html[data-theme="monument"] main::before,
