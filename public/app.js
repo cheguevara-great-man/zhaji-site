@@ -4,7 +4,7 @@ import { Water } from "./vendor/three/Water.js";
 const visualThemes = [
   { id: "lake", label: "湖面" },
   { id: "glass", label: "静态" },
-  { id: "monument", label: "纪念碑" }
+  { id: "monument", label: "自由" }
 ];
 const themeToggle = document.querySelector("[data-theme-toggle]");
 const themeLabel = document.querySelector("[data-theme-label]");

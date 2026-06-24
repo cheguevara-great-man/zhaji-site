@@ -146,39 +146,39 @@ html[data-theme="glass"] .ambient-lake-canvas {
 }
 
 html[data-theme="monument"] {
-  --bg: #d7d0c2;
-  --bg-soft: #c9c0b0;
-  --panel: rgba(239, 233, 219, 0.84);
-  --panel-soft: rgba(232, 224, 208, 0.68);
-  --ink: #17130f;
-  --ink-soft: #2c251e;
-  --muted: #6a6257;
-  --faint: #8a8174;
-  --line: rgba(55, 47, 38, 0.24);
-  --line-strong: rgba(45, 38, 30, 0.42);
-  --accent: #8b1f17;
-  --accent-deep: #5f1712;
-  --accent-soft: rgba(139, 31, 23, 0.12);
-  --gold: #b08a3b;
-  --glass: rgba(241, 235, 221, 0.76);
-  --glass-strong: rgba(247, 241, 228, 0.9);
-  --glass-border: rgba(49, 42, 34, 0.26);
-  --shadow: 0 24px 70px rgba(31, 26, 20, 0.18);
-  --shadow-hover: 0 30px 88px rgba(31, 26, 20, 0.24);
+  --bg: #e1d9c9;
+  --bg-soft: #d3c9b8;
+  --panel: rgba(244, 238, 224, 0.84);
+  --panel-soft: rgba(236, 228, 210, 0.68);
+  --ink: #171814;
+  --ink-soft: #2a2d2f;
+  --muted: #626b71;
+  --faint: #899096;
+  --line: rgba(45, 65, 84, 0.24);
+  --line-strong: rgba(34, 52, 70, 0.42);
+  --accent: #2360a6;
+  --accent-deep: #153d72;
+  --accent-soft: rgba(35, 96, 166, 0.12);
+  --gold: #c39b3f;
+  --glass: rgba(244, 238, 224, 0.76);
+  --glass-strong: rgba(249, 244, 232, 0.9);
+  --glass-border: rgba(43, 62, 80, 0.24);
+  --shadow: 0 24px 70px rgba(24, 35, 46, 0.16);
+  --shadow-hover: 0 30px 88px rgba(24, 35, 46, 0.22);
 }
 
 html[data-theme="monument"] body {
   background:
-    radial-gradient(ellipse at 50% -16%, rgba(255, 246, 221, 0.5), transparent 30vw),
-    linear-gradient(90deg, rgba(42, 34, 27, 0.12), transparent 14%, transparent 86%, rgba(42, 34, 27, 0.12)),
-    linear-gradient(180deg, rgba(242, 235, 219, 0.96), rgba(213, 204, 188, 0.9) 46%, rgba(184, 174, 156, 0.82)),
+    radial-gradient(ellipse at 50% -16%, rgba(255, 247, 212, 0.56), transparent 30vw),
+    linear-gradient(90deg, rgba(32, 55, 78, 0.1), transparent 13%, transparent 87%, rgba(32, 55, 78, 0.1)),
+    linear-gradient(180deg, rgba(246, 240, 225, 0.96), rgba(222, 214, 197, 0.9) 46%, rgba(194, 185, 168, 0.82)),
     var(--bg);
 }
 
 html[data-theme="monument"] body::before {
   background:
-    radial-gradient(ellipse at 50% 4%, rgba(255, 252, 238, 0.5), transparent 34%),
-    linear-gradient(180deg, rgba(38, 31, 25, 0.1), transparent 36%, rgba(255, 255, 255, 0.12));
+    radial-gradient(ellipse at 50% 4%, rgba(255, 252, 232, 0.58), transparent 34%),
+    linear-gradient(180deg, rgba(38, 52, 67, 0.08), transparent 36%, rgba(255, 255, 255, 0.12));
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.18) 62%, transparent 100%);
   opacity: 0.7;
 }
@@ -186,10 +186,11 @@ html[data-theme="monument"] body::before {
 html[data-theme="monument"] body::after {
   inset: 0;
   background:
-    radial-gradient(circle at 50% 104px, rgba(124, 28, 20, 0.22) 0 42px, rgba(174, 135, 63, 0.32) 43px 48px, transparent 49px),
-    linear-gradient(180deg, rgba(49, 39, 31, 0.22) 0 72px, rgba(255, 248, 228, 0.22) 73px 94px, transparent 95px),
-    linear-gradient(90deg, rgba(64, 45, 35, 0.18) 0 12%, transparent 12% 88%, rgba(64, 45, 35, 0.18) 88% 100%),
-    radial-gradient(ellipse at 50% 0%, rgba(139, 31, 23, 0.12), transparent 42%);
+    radial-gradient(circle at 50% 104px, rgba(255, 247, 211, 0.72) 0 28px, rgba(35, 96, 166, 0.24) 29px 38px, rgba(195, 155, 63, 0.34) 39px 46px, transparent 47px),
+    conic-gradient(from -26deg at 50% 102px, transparent 0 34deg, rgba(195, 155, 63, 0.18) 35deg 39deg, transparent 40deg 74deg, rgba(35, 96, 166, 0.12) 75deg 79deg, transparent 80deg 114deg, rgba(195, 155, 63, 0.18) 115deg 119deg, transparent 120deg 360deg),
+    linear-gradient(180deg, rgba(44, 58, 72, 0.18) 0 68px, rgba(255, 248, 228, 0.26) 69px 92px, transparent 93px),
+    linear-gradient(90deg, rgba(45, 68, 91, 0.14) 0 10.5%, transparent 10.5% 89.5%, rgba(45, 68, 91, 0.14) 89.5% 100%),
+    radial-gradient(ellipse at 50% 0%, rgba(35, 96, 166, 0.1), transparent 42%);
   filter: none;
   opacity: 0.9;
   transform: none;
@@ -402,10 +403,10 @@ html[data-theme="monument"] .button-link:hover {
 
 html[data-theme="monument"] .primary-action,
 html[data-theme="monument"] .filter-tabs a.active {
-  border-color: #4f1712;
-  background: linear-gradient(180deg, #9a261c, #661812);
-  color: #fff4df;
-  box-shadow: 0 14px 34px rgba(72, 21, 16, 0.22);
+  border-color: #153d72;
+  background: linear-gradient(180deg, #2f73bd, #174878);
+  color: #fff8df;
+  box-shadow: 0 14px 34px rgba(24, 65, 112, 0.22);
 }
 
 html[data-theme="monument"] .site-header {
@@ -422,12 +423,12 @@ html[data-theme="monument"] .brand {
 html[data-theme="monument"] .brand::before {
   width: 8px;
   border-radius: 1px;
-  background: linear-gradient(180deg, #211b16, var(--accent), var(--gold));
+  background: linear-gradient(180deg, #153d72, var(--accent), var(--gold));
   box-shadow: none;
 }
 
 html[data-theme="monument"] nav a.active {
-  background: rgba(139, 31, 23, 0.12);
+  background: rgba(35, 96, 166, 0.12);
   color: var(--accent-deep);
 }
 
@@ -451,24 +452,24 @@ html[data-theme="monument"] main::after {
   top: 84px;
   bottom: 5vh;
   z-index: -1;
-  width: min(150px, 10.8vw);
-  min-width: 86px;
+  width: min(132px, 9.4vw);
+  min-width: 72px;
   background:
-    linear-gradient(90deg, rgba(255, 232, 188, 0.12), transparent 22%, rgba(33, 12, 10, 0.26) 84%),
-    linear-gradient(180deg, #7d1e17, #4f1511 72%, #32100d);
-  box-shadow: 0 18px 42px rgba(43, 24, 18, 0.24), inset 1px 0 0 rgba(255, 236, 194, 0.16), inset -1px 0 0 rgba(28, 10, 8, 0.28);
+    linear-gradient(90deg, rgba(255, 243, 204, 0.22), transparent 22%, rgba(14, 39, 72, 0.2) 84%),
+    linear-gradient(180deg, #2e6fad, #1d4c7c 62%, #15365e);
+  box-shadow: 0 18px 42px rgba(28, 45, 65, 0.22), inset 1px 0 0 rgba(255, 243, 204, 0.22), inset -1px 0 0 rgba(9, 28, 54, 0.28);
   content: "";
   pointer-events: none;
 }
 
 html[data-theme="monument"] main::before {
   left: 24px;
-  clip-path: polygon(0 0, 70% 0, 70% 35%, 100% 46%, 70% 57%, 70% 91%, 35% 100%, 0 91%);
+  clip-path: polygon(0 0, 100% 0, 100% 11%, 78% 11%, 78% 88%, 100% 88%, 100% 100%, 0 100%, 0 88%, 18% 88%, 18% 11%, 0 11%);
 }
 
 html[data-theme="monument"] main::after {
   right: 24px;
-  clip-path: polygon(30% 0, 100% 0, 100% 91%, 65% 100%, 30% 91%, 30% 57%, 0 46%, 30% 35%);
+  clip-path: polygon(0 0, 100% 0, 100% 11%, 82% 11%, 82% 88%, 100% 88%, 100% 100%, 0 100%, 0 88%, 22% 88%, 22% 11%, 0 11%);
 }
 
 .hero {
@@ -501,7 +502,7 @@ html[data-theme="monument"] .hero::before {
   left: 50%;
   width: min(210px, 32vw);
   height: 8px;
-  background: linear-gradient(90deg, transparent, rgba(87, 31, 24, 0.58), rgba(176, 138, 59, 0.62), rgba(87, 31, 24, 0.58), transparent);
+  background: linear-gradient(90deg, transparent, rgba(35, 96, 166, 0.58), rgba(195, 155, 63, 0.62), rgba(35, 96, 166, 0.58), transparent);
   transform: translateX(-50%);
   content: "";
 }
@@ -592,8 +593,8 @@ html[data-theme="monument"] .hero-stats {
 
 html[data-theme="monument"] .hero-stats div {
   border-top: 4px solid var(--accent-deep);
-  background: linear-gradient(180deg, rgba(240, 232, 214, 0.92), rgba(217, 205, 184, 0.86));
-  box-shadow: 0 18px 42px rgba(39, 31, 24, 0.18);
+  background: linear-gradient(180deg, rgba(244, 238, 222, 0.92), rgba(221, 213, 196, 0.86));
+  box-shadow: 0 18px 42px rgba(24, 35, 46, 0.16);
 }
 
 .hero-stats dt {
@@ -684,7 +685,7 @@ html[data-theme="monument"] .hero-stats div {
 
 html[data-theme="monument"] .article-card::before {
   height: 4px;
-  background: linear-gradient(90deg, var(--accent), var(--gold), rgba(43, 35, 27, 0.74));
+  background: linear-gradient(90deg, var(--accent), var(--gold), rgba(45, 68, 91, 0.74));
 }
 
 .article-card:hover,
@@ -699,7 +700,7 @@ html[data-theme="monument"] .article-card::before {
 html[data-theme="monument"] .article-card:hover,
 html[data-theme="monument"] .archive-row:hover,
 html[data-theme="monument"] .search-result:hover {
-  border-color: rgba(95, 23, 18, 0.48);
+  border-color: rgba(35, 96, 166, 0.46);
   background: var(--glass-strong);
   transform: translateY(-1px);
 }
