@@ -26,6 +26,9 @@
   --pointer-x: 50%;
   --pointer-y: 18%;
   --scroll-shift: 0px;
+  --scroll-shift-soft: 0px;
+  --scroll-shift-mid: 0px;
+  --scroll-shift-back: 0px;
   --glow-rotate: 0deg;
   --glow-drift-x: 0px;
   --glow-drift-y: 0px;
@@ -97,20 +100,19 @@ html[data-theme="glass"] {
 
 html[data-theme="glass"] body {
   background:
-    radial-gradient(circle at 12% -8%, rgba(10, 132, 255, 0.22), transparent 34vw),
-    radial-gradient(circle at 88% 8%, rgba(52, 199, 89, 0.14), transparent 30vw),
-    radial-gradient(circle at 76% 76%, rgba(255, 159, 10, 0.12), transparent 30vw),
+    radial-gradient(circle at 12% calc(-8% + var(--scroll-shift)), rgba(10, 132, 255, 0.22), transparent 34vw),
+    radial-gradient(circle at 88% calc(8% + var(--scroll-shift-soft)), rgba(52, 199, 89, 0.14), transparent 30vw),
+    radial-gradient(circle at 76% calc(76% - var(--scroll-shift-mid)), rgba(255, 159, 10, 0.12), transparent 30vw),
+    radial-gradient(ellipse at 38% calc(38% - var(--scroll-shift-back)), rgba(191, 90, 242, 0.08), transparent 36vw),
     linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(244, 247, 251, 0.72) 360px),
     var(--bg);
 }
 
 html[data-theme="glass"] body::before {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.48), transparent 72%);
-  opacity: 1;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 44%, rgba(10, 132, 255, 0.06)),
+    radial-gradient(ellipse at 50% calc(0% + var(--scroll-shift-back)), rgba(255, 255, 255, 0.54), transparent 46%);
+  opacity: 0.72;
 }
 
 html[data-theme="glass"] body::after,

@@ -758,6 +758,9 @@ if (!reduceMotion) {
     root.style.setProperty("--pointer-x", `${pointer.x}%`);
     root.style.setProperty("--pointer-y", `${pointer.y}%`);
     root.style.setProperty("--scroll-shift", `${shift}px`);
+    root.style.setProperty("--scroll-shift-soft", `${shift * 0.42}px`);
+    root.style.setProperty("--scroll-shift-mid", `${shift * 0.62}px`);
+    root.style.setProperty("--scroll-shift-back", `${shift * 0.3}px`);
     root.style.setProperty("--glow-rotate", `${scrollY * 0.018}deg`);
     root.style.setProperty("--glow-drift-x", `${(pointer.x - 50) * 0.9}px`);
     root.style.setProperty("--glow-drift-y", `${(pointer.y - 50) * 0.7}px`);
