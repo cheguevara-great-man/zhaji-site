@@ -1,6 +1,52 @@
 import * as THREE from "./vendor/three/three.module.js";
 import { Water } from "./vendor/three/Water.js";
 
+const visualThemes = [
+  { id: "lake", label: "湖面" },
+  { id: "glass", label: "静态" },
+  { id: "monument", label: "纪念碑" }
+];
+const themeToggle = document.querySelector("[data-theme-toggle]");
+const themeLabel = document.querySelector("[data-theme-label]");
+let activeTheme = normalizeTheme(readTheme() || document.documentElement.dataset.theme);
+
+applyTheme(activeTheme);
+
+themeToggle?.addEventListener("click", () => {
+  const index = visualThemes.findIndex((theme) => theme.id === activeTheme);
+  const nextTheme = visualThemes[(index + 1) % visualThemes.length];
+  applyTheme(nextTheme.id);
+});
+
+function normalizeTheme(theme) {
+  return visualThemes.some((item) => item.id === theme) ? theme : "lake";
+}
+
+function applyTheme(theme) {
+  activeTheme = normalizeTheme(theme);
+  document.documentElement.dataset.theme = activeTheme;
+  writeTheme(activeTheme);
+  if (themeLabel) {
+    themeLabel.textContent = visualThemes.find((item) => item.id === activeTheme)?.label || "湖面";
+  }
+}
+
+function readTheme() {
+  try {
+    return localStorage.getItem("zhaji-theme");
+  } catch {
+    return "";
+  }
+}
+
+function writeTheme(theme) {
+  try {
+    localStorage.setItem("zhaji-theme", theme);
+  } catch {
+    // The theme still applies for the current page if storage is unavailable.
+  }
+}
+
 document.addEventListener("submit", (event) => {
   const form = event.target;
   const message = form.getAttribute("data-confirm");

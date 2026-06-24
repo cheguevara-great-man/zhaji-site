@@ -101,6 +101,7 @@ export function layout({ title, user, body, active = "" }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("zhaji-theme")||"lake"}catch{document.documentElement.dataset.theme="lake"}</script>
   <link rel="stylesheet" href="/public/styles.css">
   <script type="module" async src="/public/app.js"></script>
 </head>
@@ -111,6 +112,7 @@ export function layout({ title, user, body, active = "" }) {
       ${nav.map(([label, href]) => `<a class="${active === href ? "active" : ""}" href="${href}">${label}</a>`).join("")}
     </nav>
     <div class="account">
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="切换视觉风格"><span data-theme-label>湖面</span></button>
       ${user ? `<span>${escapeHtml(user.name)}</span><form method="post" action="/logout"><button>退出</button></form>` : `<a href="/login">登录</a><a class="button-link" href="/register">注册</a>`}
     </div>
   </header>
