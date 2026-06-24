@@ -1604,6 +1604,7 @@ html[data-theme="liberal"] body {
     linear-gradient(90deg, rgba(36, 67, 96, 0.08), transparent 15%, transparent 85%, rgba(36, 67, 96, 0.08)),
     linear-gradient(180deg, rgba(248, 241, 225, 0.98), rgba(224, 216, 198, 0.9) 52%, rgba(203, 194, 176, 0.82)),
     var(--bg);
+  background-attachment: scroll;
 }
 
 html[data-theme="liberal"] body::after {
@@ -1612,6 +1613,8 @@ html[data-theme="liberal"] body::after {
     conic-gradient(from -28deg at 50% 102px, transparent 0 33deg, rgba(197, 155, 67, 0.16) 34deg 39deg, transparent 40deg 74deg, rgba(39, 106, 168, 0.1) 75deg 80deg, transparent 81deg 114deg, rgba(197, 155, 67, 0.16) 115deg 120deg, transparent 121deg 360deg),
     linear-gradient(90deg, rgba(45, 76, 106, 0.1) 0 8.5%, transparent 8.5% 91.5%, rgba(45, 76, 106, 0.1) 91.5% 100%),
     radial-gradient(ellipse at 50% 0%, rgba(39, 106, 168, 0.08), transparent 42%);
+  transform: none;
+  transition: none;
 }
 
 html[data-theme="liberal"] button,
@@ -1705,6 +1708,7 @@ html[data-theme="monument"] body {
     linear-gradient(90deg, rgba(32, 24, 18, 0.16), transparent 13%, transparent 87%, rgba(32, 24, 18, 0.16)),
     linear-gradient(180deg, rgba(238, 230, 213, 0.98), rgba(208, 197, 179, 0.92) 48%, rgba(177, 164, 143, 0.86)),
     var(--bg);
+  background-attachment: scroll;
 }
 
 html[data-theme="monument"] body::after {
@@ -1713,6 +1717,8 @@ html[data-theme="monument"] body::after {
     linear-gradient(180deg, rgba(45, 34, 25, 0.24) 0 70px, rgba(255, 246, 223, 0.2) 71px 94px, transparent 95px),
     linear-gradient(90deg, rgba(49, 38, 29, 0.18) 0 11%, transparent 11% 89%, rgba(49, 38, 29, 0.18) 89% 100%),
     radial-gradient(ellipse at 50% 0%, rgba(123, 29, 22, 0.1), transparent 40%);
+  transform: none;
+  transition: none;
 }
 
 html[data-theme="monument"] .section-head {
