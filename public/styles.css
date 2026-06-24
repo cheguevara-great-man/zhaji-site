@@ -1709,8 +1709,9 @@ html[data-theme="monument"] body {
 
 html[data-theme="monument"] body::after {
   background:
-    radial-gradient(circle at 50% 104px, rgba(123, 29, 22, 0.2) 0 42px, rgba(173, 132, 53, 0.34) 43px 49px, transparent 50px),
-    linear-gradient(180deg, rgba(45, 34, 25, 0.24) 0 70px, rgba(255, 246, 223, 0.18) 71px 94px, transparent 95px),
+    radial-gradient(circle at 50% 104px, rgba(63, 20, 16, 0.32) 0 31px, rgba(173, 132, 53, 0.38) 32px 40px, rgba(245, 226, 181, 0.34) 41px 50px, transparent 51px),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(74, 50, 31, 0.16) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(180deg, rgba(45, 34, 25, 0.24) 0 70px, rgba(255, 246, 223, 0.2) 71px 94px, transparent 95px),
     linear-gradient(90deg, rgba(49, 38, 29, 0.18) 0 11%, transparent 11% 89%, rgba(49, 38, 29, 0.18) 89% 100%),
     radial-gradient(ellipse at 50% 0%, rgba(123, 29, 22, 0.1), transparent 40%);
 }
@@ -1718,23 +1719,35 @@ html[data-theme="monument"] body::after {
 html[data-theme="monument"] main::before,
 html[data-theme="monument"] main::after {
   top: 84px;
-  bottom: 6vh;
-  width: min(122px, 8.8vw);
-  min-width: 74px;
+  bottom: 5vh;
+  width: min(104px, 7.6vw);
+  min-width: 66px;
   background:
-    linear-gradient(90deg, rgba(255, 226, 176, 0.13), transparent 22%, rgba(29, 8, 6, 0.28) 84%),
-    linear-gradient(180deg, #771d16, #4d1511 72%, #2c0e0b);
-  box-shadow: 0 22px 52px rgba(36, 21, 15, 0.26), inset 1px 0 0 rgba(255, 233, 190, 0.14), inset -1px 0 0 rgba(27, 8, 6, 0.34);
+    radial-gradient(circle at 50% 19%, rgba(228, 189, 99, 0.72) 0 11px, rgba(62, 18, 14, 0.9) 12px 24px, rgba(174, 130, 48, 0.7) 25px 29px, transparent 30px),
+    linear-gradient(90deg, transparent 0 15%, rgba(31, 13, 11, 0.82) 15% 24%, transparent 24% 76%, rgba(31, 13, 11, 0.78) 76% 85%, transparent 85% 100%),
+    linear-gradient(180deg, rgba(168, 44, 30, 0.96), rgba(94, 21, 16, 0.98) 62%, rgba(47, 14, 11, 0.98)),
+    repeating-linear-gradient(90deg, rgba(255, 232, 174, 0.08) 0 1px, transparent 1px 18px);
+  box-shadow: 0 24px 60px rgba(36, 20, 14, 0.28), inset 1px 0 0 rgba(255, 226, 176, 0.16), inset -1px 0 0 rgba(26, 7, 5, 0.42);
+  opacity: 0.96;
 }
 
 html[data-theme="monument"] main::before {
-  left: 18px;
-  clip-path: polygon(0 0, 78% 0, 78% 38%, 100% 49%, 78% 60%, 78% 92%, 39% 100%, 0 92%);
+  left: 16px;
+  clip-path: polygon(0 0, 100% 0, 100% 90%, 50% 100%, 0 90%);
 }
 
 html[data-theme="monument"] main::after {
-  right: 18px;
-  clip-path: polygon(22% 0, 100% 0, 100% 92%, 61% 100%, 22% 92%, 22% 60%, 0 49%, 22% 38%);
+  right: 16px;
+  clip-path: polygon(0 0, 100% 0, 100% 90%, 50% 100%, 0 90%);
+}
+
+html[data-theme="monument"] .hero::before {
+  top: 12px;
+  width: min(250px, 34vw);
+  height: 10px;
+  background:
+    linear-gradient(90deg, transparent, rgba(77, 21, 17, 0.72), rgba(173, 132, 53, 0.7), rgba(245, 226, 181, 0.52), rgba(173, 132, 53, 0.7), rgba(77, 21, 17, 0.72), transparent);
+  box-shadow: 0 12px 30px rgba(57, 31, 21, 0.12);
 }
 
 html[data-theme="monument"] .hero h1 {
