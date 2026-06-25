@@ -1604,7 +1604,7 @@ html[data-theme="liberal"] body {
     linear-gradient(90deg, rgba(36, 67, 96, 0.08), transparent 15%, transparent 85%, rgba(36, 67, 96, 0.08)),
     linear-gradient(180deg, rgba(248, 241, 225, 0.98), rgba(224, 216, 198, 0.9) 52%, rgba(203, 194, 176, 0.82)),
     var(--bg);
-  background-attachment: scroll;
+  background-attachment: fixed;
 }
 
 html[data-theme="liberal"] body::after {
@@ -1708,7 +1708,7 @@ html[data-theme="monument"] body {
     linear-gradient(90deg, rgba(32, 24, 18, 0.16), transparent 13%, transparent 87%, rgba(32, 24, 18, 0.16)),
     linear-gradient(180deg, rgba(238, 230, 213, 0.98), rgba(208, 197, 179, 0.92) 48%, rgba(177, 164, 143, 0.86)),
     var(--bg);
-  background-attachment: scroll;
+  background-attachment: fixed;
 }
 
 html[data-theme="monument"] body::after {
